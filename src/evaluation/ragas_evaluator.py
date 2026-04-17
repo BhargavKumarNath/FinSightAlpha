@@ -1,3 +1,13 @@
+"""
+RAGAS Evaluator — Token-Optimized.
+
+Evaluates the FinSight-Alpha Agent using RAGAS metrics.
+Optimized with:
+  - Batched query embeddings (single encode() call for all test queries)
+  - Budget manager reset between evaluation runs
+  - Shared embedding model across components
+"""
+
 import os
 import sys
 import pandas as pd
@@ -12,7 +22,8 @@ from ragas.metrics._answer_relevance import AnswerRelevancy
 from ragas.llms.base import LangchainLLMWrapper
 from ragas.embeddings.base import LangchainEmbeddingsWrapper
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
-from src.agents.langgraph_agent import build_graph
+from src.agents.langgraph_agent import build_graph, get_budget_manager
+from src.optimization.batch_queries import QueryBatcher
 
 
 class GroqSafeWrapper(ChatGroq):
@@ -39,6 +50,10 @@ class RagasEvaluator:
     def __init__(self):
         print("Initializing the Agent Graph for Evaluation...")
         self.agent_app = build_graph()
+        self.budget_manager = get_budget_manager()
+
+        # Query batcher for efficient embedding computation
+        self.batcher = QueryBatcher()
 
         # Evaluation LLM wrapped for RAGAS (uses LangchainLLMWrapper for
         # compatibility with the legacy evaluate() pipeline)
@@ -61,6 +76,9 @@ class RagasEvaluator:
         """
         Runs the agent against a set of questions, capturing the generated answers
         and the exact contexts retrieved by the tools.
+
+        Optimization: Pre-computes all query embeddings in a single batch call
+        before iterating through queries.
         """
         data = {
             "question": [],
@@ -68,10 +86,18 @@ class RagasEvaluator:
             "contexts": [],
         }
 
+        # Pre-compute all query embeddings in a single batch
+        print(f"\n[Optimization] Batching {len(test_questions)} query embeddings...")
+        _ = self.batcher.batch_embed(test_questions)
+
         for i, question in enumerate(test_questions, 1):
             print(f"\n{'='*60}")
             print(f"[{i}/{len(test_questions)}] Evaluating Query: `{question}`")
             print("="*60)
+
+            # Reset budget for each evaluation query to prevent
+            # degradation across the test suite
+            self.budget_manager.reset()
 
             initial_state = {"messages": [HumanMessage(content=question)]}
             final_state = self.agent_app.invoke(initial_state)
@@ -109,6 +135,11 @@ class RagasEvaluator:
                 print(f"  [OK] Retrieved {len(retrieved_contexts)} context(s) ({total_chars:,} chars total)")
 
             print(f"  [Answer Preview] {final_answer[:150]}...")
+
+            # Print budget stats for this query
+            stats = self.budget_manager.stats()
+            print(f"  [Budget] Tokens used: {stats['total_tokens']} | "
+                  f"Calls: {stats['call_count']} | Tier: {stats['tier']}")
 
             data["question"].append(question)
             data["answer"].append(final_answer)

@@ -1,31 +1,45 @@
+"""
+FinSight-Alpha LangGraph Agent — Token-Optimized.
+
+Integrates all optimization modules:
+  - Compressed system prompts (zero-filler, instruction-dense)
+  - Dynamic context windowing (top-K relevant chunks, truncated)
+  - Token budget manager (graceful degradation under pressure)
+  - Tiered model routing (8B planner, 70B reasoning)
+  - Message history pruning (summarize old tool outputs)
+"""
+
 import os
-import json
-import operator
 import re
 from typing import Annotated, TypedDict, Sequence
 from dotenv import load_dotenv
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
+)
 from langchain_core.tools import tool
-from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
-# Import our custom Retriever
+# Import retriever
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 from src.retrieval.hybrid_retriever import HybridRetriever
 
-# Load Environment Variables (Groq API Key)
+# Import optimization layer
+from src.optimization.config import config
+from src.optimization.context_window import DynamicContextWindow
+from src.optimization.token_budget import TokenBudgetManager, BudgetTier
+from src.optimization.model_router import ModelRouter
+
+# Environment Setup
 load_dotenv()
 if not os.getenv("GROQ_API_KEY"):
     raise ValueError("GROQ_API_KEY is missing. Please add it to your .env file.")
-
-# (Hugging Face API Key)
-load_dotenv()
 if os.getenv("HF_TOKEN"):
     os.environ["HUGGINGFACE_HUB_TOKEN"] = os.getenv("HF_TOKEN")
+
 
 # State Definition
 class AgentState(TypedDict):
@@ -36,28 +50,67 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     plan: str
 
-# Tool Definitions
+
+# Optimization Layer Initialization
 print("Initializing Retriever for the Agent (This loads BM25 into memory)...")
 retriever = HybridRetriever()
 
+# Shared optimization instances (created once, used across all requests)
+budget_manager = TokenBudgetManager()
+model_router = ModelRouter(budget_manager=budget_manager)
+context_window = DynamicContextWindow()
 
+# Share the retriever's embedding model with context_window to avoid
+# loading a second copy of all-MiniLM-L6-v2 (~80MB)
+context_window.set_model(retriever.embedding_model)
+
+
+# Compressed System Prompts
+# These are instruction-dense with zero filler. Every token earns its place.
+
+PLANNER_PROMPT = (
+    "Output a 1-3 step research plan as a numbered list. "
+    "Do NOT answer the question, provide data, or output JSON/code."
+)
+
+AGENT_PROMPT_TEMPLATE = (
+    "Financial analyst. Tools: search_financial_docs (SEC filings), "
+    "financial_calculator (math).\n"
+    "Plan: {plan}\n"
+    "Rules: Use tools to retrieve data. Cite sources in final answer. "
+    "State clearly if data is unavailable. No fabrication."
+)
+
+AGENT_PROMPT_MINIMAL = (
+    "Answer using retrieved SEC filing data. Cite sources. No fabrication."
+)
+
+# Stripped version for hallucination recovery — absolute minimum prompt
+RECOVERY_PROMPT = "Search SEC filings to answer this question. Use search_financial_docs tool."
+
+
+# Tool Definitions
 @tool
 def search_financial_docs(query: str) -> str:
     """
     Search the SEC filings database for financial information, risks, and strategies. Input should be a specific search query.
     """
     print(f"\n[Tool Execution] Searching for: `{query}`")
-    results = retriever.search(query, top_n=5)
 
-    formatted_results = []
-    for i, res in enumerate(results, 1):
-        formatted_results.append(
-            f"Result {i} (Source: {res['metadata'].get('source')}):\n{res['text']}\n"
-        )
+    # Budget-aware retrieval: fewer results under pressure
+    top_n = budget_manager.get_retrieval_top_n()
+    results = retriever.search(query, top_n=top_n)
 
-    output = "\n".join(formatted_results)
-    print(f"[Tool Execution] search_financial_docs returned {len(results)} result(s)")
+    # Apply dynamic context windowing: score, filter, truncate
+    selected = context_window.select_chunks(query, results)
+
+    # Format compactly — short source names, relevance scores
+    output = context_window.format_context(selected)
+
+    print(f"[Tool Execution] search_financial_docs: {len(results)} retrieved → "
+          f"{len(selected)} selected (windowed)")
     return output
+
 
 @tool
 def financial_calculator(expression: str) -> str:
@@ -75,120 +128,162 @@ def financial_calculator(expression: str) -> str:
         print(f"[Tool Execution] financial_calculator ERROR: {e}")
         return f"Calculation Error: {e}"
 
+
 tools = [search_financial_docs, financial_calculator]
-
-# LLM Setup
-llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
-llm_with_tools = llm.bind_tools(tools)
-
-# Constants
-MAX_AGENT_ITERATIONS = 6
 
 # Regex pattern to detect hallucinated tool calls in text output
 _HALLUCINATED_TOOL_CALL_PATTERN = re.compile(
     r'\{"type"\s*:\s*"function"|"name"\s*:\s*"(search_financial_docs|financial_calculator)"',
 )
 
-# Node Definitions
+
+# --- Message History Pruning ---
+def _prune_message_history(messages: list, max_tool_chars: int = 600) -> list:
+    """
+    Compress old tool outputs in message history to reduce context bloat.
+
+    For ToolMessages beyond the most recent 2, truncate their content
+    to max_tool_chars. This prevents unbounded context growth across
+    multiple agent iterations while preserving the most recent results.
+    """
+    tool_indices = [i for i, m in enumerate(messages) if isinstance(m, ToolMessage)]
+
+    if len(tool_indices) <= 2:
+        return messages  # Nothing to prune
+
+    # Indices of older tool messages (all except last 2)
+    old_tool_indices = set(tool_indices[:-2])
+    pruned = []
+
+    for i, msg in enumerate(messages):
+        if i in old_tool_indices and isinstance(msg, ToolMessage):
+            content = msg.content or ""
+            if len(content) > max_tool_chars:
+                truncated = content[:max_tool_chars] + "\n[...truncated for context budget...]"
+                # Create new ToolMessage with truncated content
+                pruned.append(ToolMessage(
+                    content=truncated,
+                    tool_call_id=msg.tool_call_id,
+                    name=getattr(msg, 'name', None),
+                ))
+            else:
+                pruned.append(msg)
+        else:
+            pruned.append(msg)
+
+    return pruned
+
+
+# --- Node Definitions ---
 
 def planner_node(state: AgentState):
     """
-    Acts as the `Supervisor`. Reads the user's question and creates a brief
-    research plan. Does NOT answer the question or call tools.
+    Supervisor node. Creates a brief research plan.
+    Uses the light (8B) model — planning is a trivial task.
+    Skipped entirely under YELLOW/RED budget tiers.
     """
     print("\n[Node] Supervisor Planning...")
+
+    # Budget check: skip planner to save ~800 tokens under pressure
+    if budget_manager.should_skip_planner():
+        tier = budget_manager.get_tier()
+        print(f"  [Budget] Skipping planner (tier={tier.value}) — using default plan")
+        return {"plan": "Search SEC filings for relevant information, then synthesize answer."}
+
     messages = state.get("messages", [])
     if not messages:
         raise ValueError("No messages provided to the graph")
 
     original_query = messages[0].content
+    system_prompt = SystemMessage(content=PLANNER_PROMPT)
 
-    system_prompt = SystemMessage(content=(
-        "You are a financial research planning assistant. "
-        "Given a user query about SEC filings, output ONLY a brief action plan "
-        "as a numbered list of 1-3 short steps.\n\n"
-        "Rules:\n"
-        "- Do NOT answer the question.\n"
-        "- Do NOT provide any financial data, numbers, or analysis.\n"
-        "- Do NOT output JSON, function calls, or code.\n"
-        "- ONLY output a short numbered plan of what to research.\n\n"
-        "Example:\n"
-        "1. Search SEC filings for NVIDIA supply chain risk factors.\n"
-        "2. Summarize the key mitigation strategies found.\n"
-    ))
+    # Use light model for planning (8B — ~10× cheaper than 70B)
+    planner_llm = model_router.get_planner_llm()
+    response = planner_llm.invoke([system_prompt, HumanMessage(content=original_query)])
 
-    response = llm.invoke([system_prompt, HumanMessage(content=original_query)])
     plan_text = response.content
     print(f"\n--- Research Plan ---\n{plan_text}\n---------------------")
 
+    # Record token usage
+    input_est = budget_manager.estimate_tokens(PLANNER_PROMPT + original_query)
+    output_est = budget_manager.estimate_tokens(plan_text)
+    budget_manager.record_usage(input_est, output_est, call_label="planner")
+
     return {"plan": plan_text}
+
 
 def agent_node(state: AgentState):
     """
-    The main reasoning engine. Executes tools according to the plan,
-    then synthesizes a final answer from the retrieved context.
+    Main reasoning engine. Executes tools and synthesizes answers.
+    Uses the heavy (70B) model for reasoning, with budget-aware degradation.
     """
     print("\n[Node] Agent Reasoning...")
 
-    plan = state.get("plan", "Answer the user's question using the available tools.")
+    plan = state.get("plan", "Search SEC filings and answer the question.")
     messages = state["messages"]
 
-    # Count previous agent iterations for safety
+    # Count iterations for safety
     ai_message_count = sum(1 for m in messages if isinstance(m, AIMessage))
-    print(f"  [State] Agent iteration: {ai_message_count + 1}/{MAX_AGENT_ITERATIONS}")
+    max_iterations = budget_manager.get_max_iterations()
+    print(f"  [State] Agent iteration: {ai_message_count + 1}/{max_iterations}")
 
-    # Detect if tools have already been called (ToolMessages exist in history)
     has_tool_results = any(isinstance(m, ToolMessage) for m in messages)
     print(f"  [State] Has tool results: {has_tool_results}")
 
-    # Build system prompt — keep it clean and concise to avoid confusing tool calling
-    system_prompt = SystemMessage(content=(
-        "You are an expert financial analyst. You have access to two tools:\n"
-        "- search_financial_docs: Search SEC filings for financial information\n"
-        "- financial_calculator: Evaluate math expressions\n\n"
-        f"Research plan: {plan}\n\n"
-        "Instructions:\n"
-        "- Use search_financial_docs to retrieve relevant SEC filing excerpts.\n"
-        "- Use financial_calculator for any numerical computations.\n"
-        "- After receiving tool results, write a final answer citing sources.\n"
-        "- If documents do not contain the answer, state that clearly.\n"
-        "- Do NOT fabricate information."
-    ))
+    # Select prompt based on budget tier
+    tier = budget_manager.get_tier()
+    if tier == BudgetTier.RED:
+        prompt_text = AGENT_PROMPT_MINIMAL
+    else:
+        prompt_text = AGENT_PROMPT_TEMPLATE.format(plan=plan)
 
-    full_messages = [system_prompt] + list(messages)
+    system_prompt = SystemMessage(content=prompt_text)
+
+    # Prune message history to reduce context bloat
+    pruned_messages = _prune_message_history(list(messages))
+    full_messages = [system_prompt] + pruned_messages
+
+    # Get budget-appropriate model with tools
+    llm_with_tools = model_router.get_agent_llm(tools=tools)
+    llm_plain = model_router.get_agent_llm()  # Without tools for forced final answer
 
     # Max Iteration Guard
-    if ai_message_count >= MAX_AGENT_ITERATIONS:
-        print(f"  [WARN] Max iterations ({MAX_AGENT_ITERATIONS}) reached. Forcing final answer.")
-        # Use LLM without tools to force a text-only synthesized answer
-        response = llm.invoke(full_messages)
+    if ai_message_count >= max_iterations:
+        print(f"  [WARN] Max iterations ({max_iterations}) reached. Forcing final answer.")
+        response = llm_plain.invoke(full_messages)
+
+        # Record usage
+        input_est = budget_manager.estimate_tokens(
+            prompt_text + "".join(m.content or "" for m in pruned_messages)
+        )
+        output_est = budget_manager.estimate_tokens(response.content or "")
+        budget_manager.record_usage(input_est, output_est, call_label="agent_final_forced")
         return {"messages": [response]}
 
     # Tool Call Strategy
     if not has_tool_results:
-        # First invocation: force the LLM to call a tool
         print("  [Strategy] First pass - forcing tool call via tool_choice='required'")
         response = llm_with_tools.invoke(full_messages, tool_choice="required")
     else:
-        # Subsequent invocations: let the LLM decide (auto)
         print("  [Strategy] Follow-up pass — tool_choice='auto'")
         response = llm_with_tools.invoke(full_messages)
 
-    # Hallucination Guard
+    # Hallucination Guard (single retry, not cascading 3×)
     if not response.tool_calls and not has_tool_results:
-        # Check if the LLM wrote tool calls as text instead of native API calls
         if _HALLUCINATED_TOOL_CALL_PATTERN.search(response.content or ""):
-            print("  [WARN] Detected hallucinated tool call in text output. Retrying with forced tool_choice...")
-            response = llm_with_tools.invoke(full_messages, tool_choice="required")
+            print("  [WARN] Hallucinated tool call detected. Single retry with simplified prompt.")
+            simple_messages = [
+                SystemMessage(content=RECOVERY_PROMPT),
+                messages[0],
+            ]
+            response = llm_with_tools.invoke(simple_messages, tool_choice="required")
 
-            # If still hallucinating after retry, strip the text and try once more
-            if not response.tool_calls:
-                print("  [WARN] Second retry — simplifying prompt...")
-                simple_messages = [
-                    SystemMessage(content="Search the SEC filings to answer this question. You MUST use the search_financial_docs tool."),
-                    messages[0],  # Original user query
-                ]
-                response = llm_with_tools.invoke(simple_messages, tool_choice="required")
+    # Record token usage
+    msg_text = "".join(m.content or "" for m in pruned_messages)
+    input_est = budget_manager.estimate_tokens(prompt_text + msg_text)
+    output_est = budget_manager.estimate_tokens(response.content or "")
+    label = f"agent_iter_{ai_message_count + 1}"
+    budget_manager.record_usage(input_est, output_est, call_label=label)
 
     # Log Routing Decision
     if response.tool_calls:
@@ -201,7 +296,7 @@ def agent_node(state: AgentState):
     return {"messages": [response]}
 
 
-# Graph Routing & Compilation
+# --- Graph Routing & Compilation ---
 def route_after_agent(state: AgentState):
     """
     Determines whether to loop back to a tool or finish.
@@ -215,6 +310,7 @@ def route_after_agent(state: AgentState):
 
     print("[Router] -> END (no tool calls, agent is done)")
     return END
+
 
 def build_graph() -> StateGraph:
     workflow = StateGraph(AgentState)
@@ -237,6 +333,18 @@ def build_graph() -> StateGraph:
     workflow.add_edge("tools", "agent")
 
     return workflow.compile()
+
+
+# --- Module-level accessors for integration ---
+def get_budget_manager() -> TokenBudgetManager:
+    """Get the shared budget manager instance."""
+    return budget_manager
+
+
+def get_model_router() -> ModelRouter:
+    """Get the shared model router instance."""
+    return model_router
+
 
 if __name__ == "__main__":
     agent_app = build_graph()
@@ -285,6 +393,14 @@ if __name__ == "__main__":
             print(final_message.content)
         else:
             print("No final message generated.")
+
+        # Print optimization stats
+        print("\n--- Token Budget Stats ---")
+        stats = budget_manager.stats()
+        print(f"  Total tokens: {stats['total_tokens']}")
+        print(f"  Budget used: {stats['usage_pct']:.1%}")
+        print(f"  Tier: {stats['tier']}")
+        print(f"  LLM calls: {stats['call_count']}")
 
     finally:
         retriever.close()

@@ -1,8 +1,22 @@
+"""
+Hybrid Retriever with Caching Layer.
+
+Combines dense (Qdrant) + sparse (BM25) retrieval with RRF fusion.
+Optimized with:
+  - LRU embedding cache (avoids re-encoding identical queries)
+  - Search result cache with TTL (avoids redundant searches)
+  - Accepts pre-computed query embeddings (for batch operations)
+  - Near-duplicate result deduplication
+"""
+
 import os
 import json
 import pickle
 import glob
-from typing import List, Dict, Any
+import time
+import hashlib
+from typing import List, Dict, Any, Optional
+from collections import OrderedDict
 import numpy as np
 from tqdm import tqdm
 import torch
@@ -21,13 +35,78 @@ warnings.filterwarnings("ignore")
 logging.set_verbosity_error()
 
 
-# HYBRID RETRIEVER
+class _EmbeddingCache:
+    """
+    LRU cache for query embeddings. Avoids re-encoding identical or
+    recently-seen queries. Thread-safe via ordered dict + size cap.
+    """
+
+    def __init__(self, maxsize: int = 256):
+        self.maxsize = maxsize
+        self._cache: OrderedDict[str, np.ndarray] = OrderedDict()
+
+    def get(self, query: str) -> Optional[np.ndarray]:
+        if query in self._cache:
+            self._cache.move_to_end(query)  # Mark as recently used
+            return self._cache[query]
+        return None
+
+    def put(self, query: str, embedding: np.ndarray) -> None:
+        if query in self._cache:
+            self._cache.move_to_end(query)
+        else:
+            if len(self._cache) >= self.maxsize:
+                self._cache.popitem(last=False)  # Evict LRU
+            self._cache[query] = embedding
+
+    @property
+    def size(self) -> int:
+        return len(self._cache)
+
+
+class _ResultCache:
+    """
+    TTL-based cache for search results. Keyed by (query, top_n, fetch_k).
+    Avoids redundant retrieval for repeated queries within TTL window.
+    """
+
+    def __init__(self, ttl_seconds: int = 300):
+        self.ttl = ttl_seconds
+        self._cache: Dict[str, tuple] = {}  # key -> (results, timestamp)
+
+    def _make_key(self, query: str, top_n: int, fetch_k: int) -> str:
+        raw = f"{query}|{top_n}|{fetch_k}"
+        return hashlib.md5(raw.encode()).hexdigest()
+
+    def get(self, query: str, top_n: int, fetch_k: int) -> Optional[list]:
+        key = self._make_key(query, top_n, fetch_k)
+        if key in self._cache:
+            results, ts = self._cache[key]
+            if time.time() - ts < self.ttl:
+                return results
+            else:
+                del self._cache[key]  # Expired
+        return None
+
+    def put(self, query: str, top_n: int, fetch_k: int, results: list) -> None:
+        key = self._make_key(query, top_n, fetch_k)
+        self._cache[key] = (results, time.time())
+
+    def clear(self) -> None:
+        self._cache.clear()
+
+
+# Class-level shared model reference (for cross-module model sharing)
 class HybridRetriever:
+    _shared_embedding_model: Optional[SentenceTransformer] = None
+
     def __init__(
         self,
         collection_name: str = "sec_filings",
         qdrant_path: str = "data/qdrant_db",
         bm25_path: str = "data/bm25_index.pkl",
+        embedding_cache_size: int = 256,
+        result_cache_ttl: int = 300,
     ):
         self.collection_name = collection_name
         self.qdrant_path = qdrant_path
@@ -37,10 +116,12 @@ class HybridRetriever:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Embedding model running on: {self.device.upper()}")
 
-        # Model
-        self.embedding_model = SentenceTransformer(
-            "all-MiniLM-L6-v2", device=self.device
-        )
+        # Model (shared across instances)
+        if HybridRetriever._shared_embedding_model is None:
+            HybridRetriever._shared_embedding_model = SentenceTransformer(
+                "all-MiniLM-L6-v2", device=self.device
+            )
+        self.embedding_model = HybridRetriever._shared_embedding_model
         self.vector_size = self.embedding_model.get_embedding_dimension()
 
         # Qdrant
@@ -51,11 +132,20 @@ class HybridRetriever:
         self.bm25: BM25Okapi = None
         self.corpus_metadata: List[Dict[str, Any]] = []
 
-    # TOKENIZER
+        # Caching layers
+        self._embedding_cache = _EmbeddingCache(maxsize=embedding_cache_size)
+        self._result_cache = _ResultCache(ttl_seconds=result_cache_ttl)
+
+        # Stats
+        self._embedding_cache_hits = 0
+        self._result_cache_hits = 0
+        self._total_searches = 0
+
+    # tokenizer
     def _tokenize(self, text: str) -> List[str]:
         return text.lower().split()
 
-    # BUILD INDEX
+    # Build index
     def build_index(self, jsonl_dir: str, batch_size: int = 500) -> None:
         if self.qdrant_client.collection_exists(self.collection_name):
             self.qdrant_client.delete_collection(self.collection_name)
@@ -157,15 +247,50 @@ class HybridRetriever:
             for doc_id, score in ranked[:top_n]
         ]
 
-    # SEARCH
-    def search(self, query: str, top_n: int = 5, fetch_k: int = 50):
+    # SEARCH (with caching + optional pre-computed embedding)
+    def search(
+        self,
+        query: str,
+        top_n: int = 5,
+        fetch_k: int = 50,
+        query_embedding: Optional[np.ndarray] = None,
+    ):
+        """
+        Hybrid search with embedding and result caching.
+
+        Args:
+            query: Search query string.
+            top_n: Number of results to return.
+            fetch_k: Candidates to fetch from each retrieval path.
+            query_embedding: Pre-computed embedding (skips re-encoding).
+        """
+        self._total_searches += 1
+
         if self.bm25 is None:
             self.load_bm25()
 
+        # Check result cache first
+        cached_results = self._result_cache.get(query, top_n, fetch_k)
+        if cached_results is not None:
+            self._result_cache_hits += 1
+            print(f"\n[Retriever] Result cache hit for: '{query[:50]}...'")
+            return cached_results
+
         print(f"\nQuery: {query}")
 
-        # Dense
-        q_vec = self.embedding_model.encode(query).tolist()
+        # Dense: use cached or pre-computed embedding
+        if query_embedding is not None:
+            q_vec = query_embedding.tolist() if isinstance(query_embedding, np.ndarray) else query_embedding
+        else:
+            cached_emb = self._embedding_cache.get(query)
+            if cached_emb is not None:
+                self._embedding_cache_hits += 1
+                q_vec = cached_emb.tolist()
+            else:
+                emb = self.embedding_model.encode(query)
+                self._embedding_cache.put(query, emb)
+                q_vec = emb.tolist()
+
         dense = self.qdrant_client.query_points(
             collection_name=self.collection_name,
             query=q_vec,
@@ -179,14 +304,26 @@ class HybridRetriever:
 
         sparse = [{"id": int(i)} for i in idxs if scores[i] > 0]
 
-        return self._rrf(dense, sparse, top_n=top_n)
+        results = self._rrf(dense, sparse, top_n=top_n)
+
+        # Cache the results
+        self._result_cache.put(query, top_n, fetch_k, results)
+
+        return results
+
+    def cache_stats(self) -> Dict[str, Any]:
+        """Return retriever cache statistics."""
+        return {
+            "total_searches": self._total_searches,
+            "embedding_cache_size": self._embedding_cache.size,
+            "embedding_cache_hits": self._embedding_cache_hits,
+            "result_cache_hits": self._result_cache_hits,
+        }
 
     # CLEAN SHUTDOWN
     def close(self):
         self.qdrant_client.close()
 
-
-# MAIN
 if __name__ == "__main__":
     retriever = HybridRetriever()
 
@@ -208,6 +345,14 @@ if __name__ == "__main__":
             print(f"Source: {r['metadata'].get('source', 'Unknown')}")
             print(f"Text: {r['text'][:200]}...")
             print("-" * 50)
+
+        # Test cache hit
+        print("\n--- Testing cache hit ---")
+        results2 = retriever.search(
+            "What are the primary risks associated with artificial intelligence and GPU supply chain?",
+            top_n=3,
+        )
+        print(f"Cache stats: {retriever.cache_stats()}")
 
     finally:
         retriever.close()
