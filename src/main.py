@@ -23,7 +23,7 @@ class QueryResponse(BaseModel):
     answer: str
     reasoning_trace: List[str]
 
-@app.pos("/chat", response_model=QueryResponse)
+@app.post("/chat", response_model=QueryResponse)
 async def chat_endpoint(request: QueryRequest):
     """
     Accepts a user query, runs it through the LandGraph agent, and returns the final answer along with the tool execution trace.
