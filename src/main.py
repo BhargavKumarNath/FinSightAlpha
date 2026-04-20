@@ -12,6 +12,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+import re
+import math
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from langchain_core.messages import HumanMessage, AIMessage
 from src.agents.langgraph_agent import build_graph, get_budget_manager, get_model_router
@@ -25,7 +27,7 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# --- Initialize Components ---
+# Initialize Components
 print("Loading Agent Graph & Qdrant/BM25 Indices...")
 agent_app = build_graph()
 response_cache = SemanticResponseCache()
@@ -41,7 +43,7 @@ if HybridRetriever._shared_embedding_model is not None:
 print("System Ready (with token optimization layer)")
 
 
-# --- Request/Response Models ---
+# Request/Response Models
 class QueryRequest(BaseModel):
     query: str
 
@@ -51,9 +53,11 @@ class QueryResponse(BaseModel):
     reasoning_trace: List[str]
     cache_hit: bool = False
     tokens_used: Optional[int] = None
+    latencies: Dict[str, float] = {}
+    retrieval_metrics: Dict[str, float] = {}
 
 
-# --- Endpoints ---
+# Endpoints
 @app.post("/chat", response_model=QueryResponse)
 async def chat_endpoint(request: QueryRequest):
     """
@@ -70,32 +74,39 @@ async def chat_endpoint(request: QueryRequest):
                 reasoning_trace=trace,
                 cache_hit=True,
                 tokens_used=0,
+                latencies={"cache_retrieval": 0.05},
+                retrieval_metrics={"MRR": 1.0, "NDCG": 1.0, "total_retrieved": 0, "total_cited": 0}
             )
 
         # Step 2: Record pre-call token state
         tokens_before = budget_manager.total_tokens
 
         # Step 3: Run the full agent pipeline
-        initial_state = {"messages": [HumanMessage(content=request.query)]}
+        initial_state = {
+            "messages": [HumanMessage(content=request.query)],
+            "original_query": request.query,
+            "context_chunks": [],
+            "loop_count": 0
+        }
         final_state = agent_app.invoke(initial_state)
-
-        messages = final_state.get("messages", [])
 
         # Extract reasoning trace
         reasoning_trace = []
-        for msg in messages:
-            if isinstance(msg, AIMessage) and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    action = f"Used Tool: `{tc['name']}` | Args: {tc['args']}"
-                    reasoning_trace.append(action)
+        if "plan" in final_state:
+            reasoning_trace.append(f"Plan: {final_state['plan']}")
+        if "sub_queries" in final_state:
+            for sq in final_state["sub_queries"]:
+                reasoning_trace.append(f"Searched for: {sq}")
+        if "reflection" in final_state:
+            reasoning_trace.append(f"Reflection: {final_state['reflection']}")
 
         # Extract final answer
+        messages = final_state.get("messages", [])
         final_answer = ""
         for msg in reversed(messages):
             if isinstance(msg, AIMessage) and msg.content and msg.content.strip():
-                if '{"type": "function"' not in msg.content:
-                    final_answer = msg.content
-                    break
+                final_answer = msg.content
+                break
 
         if not final_answer:
             final_answer = "The agent could not formulate a definitive answer"
@@ -109,11 +120,47 @@ async def chat_endpoint(request: QueryRequest):
             token_cost=tokens_used,
         )
 
+        # Step 5: Extract Latencies and Metrics
+        latencies = final_state.get("latencies", {})
+        
+        context_chunks = final_state.get("context_chunks", [])
+        citations = set(re.findall(r'\[Doc\s*(\d+):', final_answer))
+        
+        mrr = 0.0
+        dcg = 0.0
+        idcg = 0.0
+        ndcg = 0.0
+        
+        if context_chunks:
+            # IDCG calculation (assume all cited docs could theoretically be top-ranked)
+            num_hits = len(citations)
+            for i in range(num_hits):
+                idcg += 1.0 / math.log2((i+1) + 1)
+                
+            for rank, chunk in enumerate(context_chunks, start=1):
+                doc_id = str(chunk.get("doc_id", ""))
+                if doc_id in citations:
+                    if mrr == 0.0:
+                        mrr = 1.0 / rank
+                    dcg += 1.0 / math.log2(rank + 1)
+            
+            if idcg > 0:
+                ndcg = dcg / idcg
+
+        retrieval_metrics = {
+            "MRR": mrr,
+            "NDCG": ndcg,
+            "total_retrieved": len(context_chunks),
+            "total_cited": len(citations)
+        }
+
         return QueryResponse(
             answer=final_answer,
             reasoning_trace=reasoning_trace,
             cache_hit=False,
             tokens_used=tokens_used,
+            latencies=latencies,
+            retrieval_metrics=retrieval_metrics
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

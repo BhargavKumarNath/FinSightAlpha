@@ -13,33 +13,33 @@ from dataclasses import dataclass, field
 class OptimizationConfig:
     """Single source of truth for all optimization knobs."""
 
-    # --- Semantic Response Cache ---
+    # Semantic Response Cache
     cache_max_size: int = 500           # Max cached responses
     cache_ttl_seconds: int = 3600       # 1 hour TTL
     cache_similarity_threshold: float = 0.92  # Cosine sim threshold for cache hit
 
-    # --- Dynamic Context Window ---
+    # Dynamic Context Window
     context_top_k: int = 3              # Max chunks injected per query
     context_max_chunk_chars: int = 800   # Truncate individual chunks
     context_max_total_tokens: int = 2000 # Hard cap on total context tokens
     context_relevance_floor: float = 0.25  # Min similarity to include chunk
 
-    # --- Token Budget Manager ---
+    # Token Budget Manager
     session_token_budget: int = 100_000  # Total tokens per session
     budget_yellow_pct: float = 0.60      # Yellow tier threshold
     budget_red_pct: float = 0.85         # Red tier threshold
     tokens_per_char: float = 0.25        # Estimation: 4 chars ≈ 1 token
 
-    # --- Model Router ---
+    # Model Router
     model_heavy: str = "llama-3.3-70b-versatile"   # Reasoning/synthesis
     model_light: str = "llama-3.1-8b-instant"      # Planning/classification
     model_temperature: float = 0.0
 
-    # --- Retriever Cache ---
+    # Retriever Cache
     retriever_cache_maxsize: int = 256   # Max cached query embeddings
     retriever_result_cache_ttl: int = 300  # 5 min result cache TTL
 
-    # --- Query Batching ---
+    # Query Batching
     batch_window_ms: int = 100           # Batching time window
     batch_max_size: int = 8              # Max queries per batch
 

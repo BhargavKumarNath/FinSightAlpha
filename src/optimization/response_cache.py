@@ -11,9 +11,7 @@ import threading
 import numpy as np
 from typing import Optional, Dict, Any, Tuple
 from sentence_transformers import SentenceTransformer
-
 from src.optimization.config import config
-
 
 class CacheEntry:
     """Single cached response entry."""

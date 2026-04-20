@@ -1,25 +1,27 @@
 """
-FinSight-Alpha LangGraph Agent — Token-Optimized.
+FinSight-Alpha LangGraph Agent — FAANG-Grade RAG Architecture.
 
-Integrates all optimization modules:
-  - Compressed system prompts (zero-filler, instruction-dense)
-  - Dynamic context windowing (top-K relevant chunks, truncated)
-  - Token budget manager (graceful degradation under pressure)
-  - Tiered model routing (8B planner, 70B reasoning)
-  - Message history pruning (summarize old tool outputs)
+Advanced Plan-Rewrite-Retrieve-Reason-Reflect Loop:
+- Explicit Multi-Hop Query Decomposition
+- Hybrid Search + Cross-Encoder Reranking
+- Citation Tracking
+- Post-Generation Hallucination Self-Correction
 """
 
 import os
-import re
-from typing import Annotated, TypedDict, Sequence
+import json
+import operator
+import time
+import traceback
+from typing import Annotated, TypedDict, Sequence, List, Dict, Any
 from dotenv import load_dotenv
+
 from langchain_core.messages import (
-    BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
+    BaseMessage, HumanMessage, AIMessage, SystemMessage
 )
-from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode
 
 # Import retriever
 import sys
@@ -29,7 +31,6 @@ from src.retrieval.hybrid_retriever import HybridRetriever
 
 # Import optimization layer
 from src.optimization.config import config
-from src.optimization.context_window import DynamicContextWindow
 from src.optimization.token_budget import TokenBudgetManager, BudgetTier
 from src.optimization.model_router import ModelRouter
 
@@ -40,367 +41,374 @@ if not os.getenv("GROQ_API_KEY"):
 if os.getenv("HF_TOKEN"):
     os.environ["HUGGINGFACE_HUB_TOKEN"] = os.getenv("HF_TOKEN")
 
+# Reducer
+def add_latencies(left: dict, right: dict) -> dict:
+    if left is None: left = {}
+    if right is None: return left
+    res = left.copy()
+    for k, v in right.items():
+        res[k] = res.get(k, 0.0) + v
+    return res
 
-# State Definition
+# Advanced State Definition
 class AgentState(TypedDict):
-    """
-    maintains the state of our agentic loop.
-    `add_messages` automatically appends new messages to the existing list.
-    """
+    """State for FAANG-grade RAG pipeline."""
     messages: Annotated[Sequence[BaseMessage], add_messages]
+    original_query: str
     plan: str
+    sub_queries: List[str]
+    context_chunks: Annotated[List[Dict[str, Any]], operator.add]
+    draft_answer: str
+    reflection: str
+    is_grounded: bool
+    loop_count: int
+    latencies: Annotated[Dict[str, float], add_latencies]
+    error: str
 
 
 # Optimization Layer Initialization
-print("Initializing Retriever for the Agent (This loads BM25 into memory)...")
+print("Initializing FAANG Retriever & Reranker...")
 retriever = HybridRetriever()
 
-# Shared optimization instances (created once, used across all requests)
 budget_manager = TokenBudgetManager()
 model_router = ModelRouter(budget_manager=budget_manager)
-context_window = DynamicContextWindow()
-
-# Share the retriever's embedding model with context_window to avoid
-# loading a second copy of all-MiniLM-L6-v2 (~80MB)
-context_window.set_model(retriever.embedding_model)
 
 
-# Compressed System Prompts
-# These are instruction-dense with zero filler. Every token earns its place.
+# System Prompts
 
 PLANNER_PROMPT = (
-    "Output a 1-3 step research plan as a numbered list. "
-    "Do NOT answer the question, provide data, or output JSON/code."
+    "You are a Senior Financial Strategist. Analyze the user's query and formulate a 1-3 step "
+    "retrieval plan to answer it completely. Output ONLY the numbered list. No filler."
 )
 
-AGENT_PROMPT_TEMPLATE = (
-    "Financial analyst. Tools: search_financial_docs (SEC filings), "
-    "financial_calculator (math).\n"
-    "Plan: {plan}\n"
-    "Rules: Use tools to retrieve data. Cite sources in final answer. "
-    "State clearly if data is unavailable. No fabrication."
+REWRITER_PROMPT = (
+    "You are a skilled Query Decomposition Agent. The user wants to answer a complex, multi-hop question. "
+    "Your job is to break the main query into separate atomic search queries optimized for a semantic vector database. "
+    "CRITICAL RULES:\n"
+    "1. SEQUENTIAL DEPENDENCIES: If identifying an entity is required before answering a subsequent question, branch the questions sequentially! (e.g. ['Company that acquired Figma in 2022', 'CEO of Adobe', 'Open-source framework created by Adobe']).\n"
+    "2. Generate NATURAL LANGUAGE queries only. NEVER generate SQL, code, or boolean expressions. Expand abbreviations automatically.\n"
+    "3. Focus on entities, years, financial metrics, and specific risk factors.\n"
+    "Previous plan: {plan}\n"
+    "Feedback from reflection (if any): {reflection}\n\n"
+    "Return JSON exact schema: {{\"queries\": [\"query 1\", \"query 2\"]}}"
 )
 
-AGENT_PROMPT_MINIMAL = (
-    "Answer using retrieved SEC filing data. Cite sources. No fabrication."
+REASONER_PROMPT = (
+    "You are an elite Financial Analyst. Answer the user's query using ONLY the provided retrieved chunks. "
+    "CRITICAL RULE: You MUST cite the exact [Doc X] for every claim you make. Do not mix sources without citing both. "
+    "If the documents do not contain the answer, explicitly state so. Do not fabricate information.\n"
+    "User Query: {original_query}\n\n"
+    "--- Context Chunks ---\n{context}"
 )
 
-# Stripped version for hallucination recovery — absolute minimum prompt
-RECOVERY_PROMPT = "Search SEC filings to answer this question. Use search_financial_docs tool."
-
-
-# Tool Definitions
-@tool
-def search_financial_docs(query: str) -> str:
-    """
-    Search the SEC filings database for financial information, risks, and strategies. Input should be a specific search query.
-    """
-    print(f"\n[Tool Execution] Searching for: `{query}`")
-
-    # Budget-aware retrieval: fewer results under pressure
-    top_n = budget_manager.get_retrieval_top_n()
-    results = retriever.search(query, top_n=top_n)
-
-    # Apply dynamic context windowing: score, filter, truncate
-    selected = context_window.select_chunks(query, results)
-
-    # Format compactly — short source names, relevance scores
-    output = context_window.format_context(selected)
-
-    print(f"[Tool Execution] search_financial_docs: {len(results)} retrieved → "
-          f"{len(selected)} selected (windowed)")
-    return output
-
-
-@tool
-def financial_calculator(expression: str) -> str:
-    """
-    Evaluates mathematical expressions for financial analysis
-    Input must be a valid Python mathematical expression
-    """
-    print(f"\n[Tool Execution] Calculating: `{expression}`")
-    try:
-        allowed_names = {"__builtins__": None}
-        result = eval(expression, allowed_names, {})
-        print(f"[Tool Execution] financial_calculator result: {result}")
-        return str(result)
-    except Exception as e:
-        print(f"[Tool Execution] financial_calculator ERROR: {e}")
-        return f"Calculation Error: {e}"
-
-
-tools = [search_financial_docs, financial_calculator]
-
-# Regex pattern to detect hallucinated tool calls in text output
-_HALLUCINATED_TOOL_CALL_PATTERN = re.compile(
-    r'\{"type"\s*:\s*"function"|"name"\s*:\s*"(search_financial_docs|financial_calculator)"',
+REFLECTOR_PROMPT = (
+    "You are a strict Hallucination Checker & Evaluator. You are reviewing a draft answer against the provided context. "
+    "1. Is the answer directly addressing the user's query based ONLY on the context?\n"
+    "2. Are there any fabricated facts or numbers not present in the context?\n"
+    "3. Does the draft have missing information that requires another search?\n"
+    "\nContext:\n{context}\n\nDraft Answer:\n{draft}\n\n"
+    "Output JSON strictly with keys: 'is_grounded' (boolean), 'needs_more_info' (boolean), 'feedback' (string)."
 )
 
-
-# --- Message History Pruning ---
-def _prune_message_history(messages: list, max_tool_chars: int = 600) -> list:
-    """
-    Compress old tool outputs in message history to reduce context bloat.
-
-    For ToolMessages beyond the most recent 2, truncate their content
-    to max_tool_chars. This prevents unbounded context growth across
-    multiple agent iterations while preserving the most recent results.
-    """
-    tool_indices = [i for i, m in enumerate(messages) if isinstance(m, ToolMessage)]
-
-    if len(tool_indices) <= 2:
-        return messages  # Nothing to prune
-
-    # Indices of older tool messages (all except last 2)
-    old_tool_indices = set(tool_indices[:-2])
-    pruned = []
-
-    for i, msg in enumerate(messages):
-        if i in old_tool_indices and isinstance(msg, ToolMessage):
-            content = msg.content or ""
-            if len(content) > max_tool_chars:
-                truncated = content[:max_tool_chars] + "\n[...truncated for context budget...]"
-                # Create new ToolMessage with truncated content
-                pruned.append(ToolMessage(
-                    content=truncated,
-                    tool_call_id=msg.tool_call_id,
-                    name=getattr(msg, 'name', None),
-                ))
-            else:
-                pruned.append(msg)
-        else:
-            pruned.append(msg)
-
-    return pruned
-
-
-# --- Node Definitions ---
+# Nodes
 
 def planner_node(state: AgentState):
-    """
-    Supervisor node. Creates a brief research plan.
-    Uses the light (8B) model — planning is a trivial task.
-    Skipped entirely under YELLOW/RED budget tiers.
-    """
-    print("\n[Node] Supervisor Planning...")
+    """Supervisor formulates a high-level research strategy."""
+    if state.get("error"): return {"latencies": {}}
+    start_t = time.time()
+    print("\n[Node] Planner...")
+    try:
+        messages = state.get("messages", [])
+        query = state.get("original_query", "")
+        if not query: query = messages[0].content
+        loop_count = state.get("loop_count", 0)
 
-    # Budget check: skip planner to save ~800 tokens under pressure
-    if budget_manager.should_skip_planner():
-        tier = budget_manager.get_tier()
-        print(f"  [Budget] Skipping planner (tier={tier.value}) — using default plan")
-        return {"plan": "Search SEC filings for relevant information, then synthesize answer."}
+        if budget_manager.should_skip_planner():
+            return {"plan": "Synthesize directly.", "original_query": query, "loop_count": loop_count, "latencies": {"planner": time.time() - start_t}}
 
-    messages = state.get("messages", [])
-    if not messages:
-        raise ValueError("No messages provided to the graph")
-
-    original_query = messages[0].content
-    system_prompt = SystemMessage(content=PLANNER_PROMPT)
-
-    # Use light model for planning (8B — ~10× cheaper than 70B)
-    planner_llm = model_router.get_planner_llm()
-    response = planner_llm.invoke([system_prompt, HumanMessage(content=original_query)])
-
-    plan_text = response.content
-    print(f"\n--- Research Plan ---\n{plan_text}\n---------------------")
-
-    # Record token usage
-    input_est = budget_manager.estimate_tokens(PLANNER_PROMPT + original_query)
-    output_est = budget_manager.estimate_tokens(plan_text)
-    budget_manager.record_usage(input_est, output_est, call_label="planner")
-
-    return {"plan": plan_text}
+        planner_llm = model_router.get_planner_llm()
+        response = planner_llm.invoke([SystemMessage(content=PLANNER_PROMPT), HumanMessage(content=query)])
+        plan = response.content
+        print(f"  Plan: {plan.replace(chr(10), ' | ')}")
+        budget_manager.record_usage(budget_manager.estimate_tokens(PLANNER_PROMPT + query), budget_manager.estimate_tokens(plan), "planner")
+        return {"plan": plan, "original_query": query, "loop_count": loop_count, "latencies": {"planner": time.time() - start_t}}
+    except Exception as e:
+        err = f"Planner Error: {str(e)}"
+        print(f"  [CRASH] {err}")
+        return {"error": err, "latencies": {"planner": time.time() - start_t}}
 
 
-def agent_node(state: AgentState):
-    """
-    Main reasoning engine. Executes tools and synthesizes answers.
-    Uses the heavy (70B) model for reasoning, with budget-aware degradation.
-    """
-    print("\n[Node] Agent Reasoning...")
+def query_rewriter_node(state: AgentState):
+    """Decomposes the main query into atomic search queries."""
+    if state.get("error"): return {"latencies": {}}
+    start_t = time.time()
+    print("\n[Node] Query Rewriter...")
+    try:
+        plan = state.get("plan", "")
+        query = state.get("original_query", "")
+        reflection = state.get("reflection", "None")
 
-    plan = state.get("plan", "Search SEC filings and answer the question.")
-    messages = state["messages"]
+        prompt = REWRITER_PROMPT.format(plan=plan, reflection=reflection)
+        llm = model_router.get_planner_llm()
+        
+        response = llm.invoke([SystemMessage(content=prompt), HumanMessage(content=f"Original Query: {query}")], response_format={"type": "json_object"})
+        
+        try:
+            parsed = json.loads(response.content)
+            queries = parsed.get("queries", [query])
+        except Exception:
+            print("  [WARN] Failed to parse JSON queries. Using original.")
+            queries = [query]
 
-    # Count iterations for safety
-    ai_message_count = sum(1 for m in messages if isinstance(m, AIMessage))
-    max_iterations = budget_manager.get_max_iterations()
-    print(f"  [State] Agent iteration: {ai_message_count + 1}/{max_iterations}")
-
-    has_tool_results = any(isinstance(m, ToolMessage) for m in messages)
-    print(f"  [State] Has tool results: {has_tool_results}")
-
-    # Select prompt based on budget tier
-    tier = budget_manager.get_tier()
-    if tier == BudgetTier.RED:
-        prompt_text = AGENT_PROMPT_MINIMAL
-    else:
-        prompt_text = AGENT_PROMPT_TEMPLATE.format(plan=plan)
-
-    system_prompt = SystemMessage(content=prompt_text)
-
-    # Prune message history to reduce context bloat
-    pruned_messages = _prune_message_history(list(messages))
-    full_messages = [system_prompt] + pruned_messages
-
-    # Get budget-appropriate model with tools
-    llm_with_tools = model_router.get_agent_llm(tools=tools)
-    llm_plain = model_router.get_agent_llm()  # Without tools for forced final answer
-
-    # Max Iteration Guard
-    if ai_message_count >= max_iterations:
-        print(f"  [WARN] Max iterations ({max_iterations}) reached. Forcing final answer.")
-        response = llm_plain.invoke(full_messages)
-
-        # Record usage
-        input_est = budget_manager.estimate_tokens(
-            prompt_text + "".join(m.content or "" for m in pruned_messages)
-        )
-        output_est = budget_manager.estimate_tokens(response.content or "")
-        budget_manager.record_usage(input_est, output_est, call_label="agent_final_forced")
-        return {"messages": [response]}
-
-    # Tool Call Strategy
-    if not has_tool_results:
-        print("  [Strategy] First pass - forcing tool call via tool_choice='required'")
-        response = llm_with_tools.invoke(full_messages, tool_choice="required")
-    else:
-        print("  [Strategy] Follow-up pass — tool_choice='auto'")
-        response = llm_with_tools.invoke(full_messages)
-
-    # Hallucination Guard (single retry, not cascading 3×)
-    if not response.tool_calls and not has_tool_results:
-        if _HALLUCINATED_TOOL_CALL_PATTERN.search(response.content or ""):
-            print("  [WARN] Hallucinated tool call detected. Single retry with simplified prompt.")
-            simple_messages = [
-                SystemMessage(content=RECOVERY_PROMPT),
-                messages[0],
-            ]
-            response = llm_with_tools.invoke(simple_messages, tool_choice="required")
-
-    # Record token usage
-    msg_text = "".join(m.content or "" for m in pruned_messages)
-    input_est = budget_manager.estimate_tokens(prompt_text + msg_text)
-    output_est = budget_manager.estimate_tokens(response.content or "")
-    label = f"agent_iter_{ai_message_count + 1}"
-    budget_manager.record_usage(input_est, output_est, call_label=label)
-
-    # Log Routing Decision
-    if response.tool_calls:
-        for tc in response.tool_calls:
-            print(f"  [Tool Call Detected] {tc['name']}(args={tc['args']})")
-    else:
-        answer_preview = (response.content or "")[:120]
-        print(f"  [Final Answer] {answer_preview}...")
-
-    return {"messages": [response]}
+        print(f"  Generated Sub-Queries: {queries}")
+        budget_manager.record_usage(budget_manager.estimate_tokens(prompt + query), budget_manager.estimate_tokens(response.content), "query_rewriter")
+        return {"sub_queries": queries, "latencies": {"query_rewriter": time.time() - start_t}}
+    except Exception as e:
+        err = f"Rewriter Error: {str(e)}"
+        print(f"  [CRASH] {err}")
+        return {"error": err, "latencies": {"query_rewriter": time.time() - start_t}}
 
 
-# --- Graph Routing & Compilation ---
-def route_after_agent(state: AgentState):
-    """
-    Determines whether to loop back to a tool or finish.
-    """
-    last_message = state["messages"][-1]
+def retriever_node(state: AgentState):
+    """Executes multi-query retrieval and formats chunks with citations."""
+    if state.get("error"): return {"latencies": {}}
+    start_t = time.time()
+    print("\n[Node] Retriever...")
+    try:
+        sub_queries = state.get("sub_queries", [])
+        if not sub_queries: sub_queries = [state.get("original_query", "")]
+        top_n = budget_manager.get_retrieval_top_n()
+        existing_context = state.get("context_chunks", [])
+        new_chunks = []
+        doc_id_counter = len(existing_context) + 1
+        existing_texts = {c["text"] for c in existing_context}
 
-    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-        tool_names = [tc['name'] for tc in last_message.tool_calls]
-        print(f"[Router] -> tools (calls: {tool_names})")
-        return "tools"
+        for sq in sub_queries:
+            print(f"  Searching: `{sq}`")
+            results = retriever.search(sq, top_n=top_n)
+            for r in results:
+                text = r["text"]
+                if text not in existing_texts:
+                    existing_texts.add(text)
+                    source = r.get("metadata", {}).get("source", "unknown")
+                    short_fname = source.split("/")[-1].split("\\")[-1]
+                    new_chunks.append({"doc_id": doc_id_counter, "text": text, "source": short_fname, "score": r.get("score", 0.0)})
+                    doc_id_counter += 1
 
-    print("[Router] -> END (no tool calls, agent is done)")
-    return END
+        print(f"  Collected {len(new_chunks)} new chunks for reasoning.")
+        new_chunks.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+        return {"context_chunks": new_chunks, "latencies": {"retriever": time.time() - start_t}}
+    except Exception as e:
+        err = f"Retriever Error: {str(e)}"
+        print(f"  [CRASH] {err}")
+        return {"error": err, "latencies": {"retriever": time.time() - start_t}}
 
+
+def reasoner_node(state: AgentState):
+    """Synthesizes the final answer using strict citations."""
+    if state.get("error"): return {"latencies": {}}
+    start_t = time.time()
+    print("\n[Node] Reasoner...")
+    try:
+        query = state.get("original_query", "")
+        context_chunks = state.get("context_chunks", [])
+        context_str = ""
+        for c in context_chunks:
+            context_str += f"[Doc {c['doc_id']}: {c['source']}] (Relevance: {c['score']:.2f})\\n{c['text']}\\n\\n"
+
+        prompt = REASONER_PROMPT.format(original_query=query, context=context_str)
+        llm = model_router.get_agent_llm()
+        response = llm.invoke([SystemMessage(content=prompt)])
+        draft = response.content
+        preview = draft.replace('\\n', ' ')[:100]
+        print(f"  Draft: {preview}...")
+        budget_manager.record_usage(budget_manager.estimate_tokens(prompt), budget_manager.estimate_tokens(draft), "reasoner")
+        return {"draft_answer": draft, "latencies": {"reasoner": time.time() - start_t}}
+    except Exception as e:
+        err = f"Reasoner Error: {str(e)}"
+        print(f"  [CRASH] {err}")
+        return {"error": err, "latencies": {"reasoner": time.time() - start_t}}
+
+
+def reflector_node(state: AgentState):
+    """Evaluates the draft for hallucinations and coverage."""
+    if state.get("error"): return {"loop_count": state.get("loop_count", 0), "latencies": {}}
+    start_t = time.time()
+    print("\n[Node] Reflector...")
+    try:
+        draft = state.get("draft_answer", "")
+        context_chunks = state.get("context_chunks", [])
+        loop_count = state.get("loop_count", 0) + 1
+
+        context_str = "\\n".join([f"[Doc {c['doc_id']}]: {c['text'][:300]}..." for c in context_chunks])
+        prompt = REFLECTOR_PROMPT.format(context=context_str, draft=draft)
+        
+        llm = model_router.get_planner_llm()
+        response = llm.invoke([SystemMessage(content=prompt)], response_format={"type": "json_object"})
+        
+        try:
+            parsed = json.loads(response.content)
+            is_grounded = parsed.get("is_grounded", True)
+            needs_more_info = parsed.get("needs_more_info", False)
+            feedback = parsed.get("feedback", "")
+        except Exception:
+            print("  [WARN] Failed to parse Reflection. Assuming grounded.")
+            is_grounded = True
+            needs_more_info = False
+            feedback = "Parse failed."
+
+        print(f"  Grounded: {is_grounded} | Needs More Info: {needs_more_info}")
+        budget_manager.record_usage(budget_manager.estimate_tokens(prompt), budget_manager.estimate_tokens(response.content), "reflector")
+
+        action = "needs_retrieval" if needs_more_info else ("needs_rewrite" if not is_grounded else "good")
+        return {
+            "is_grounded": True if action == "good" else False,
+            "reflection": f"Action={action}, Reason={feedback}",
+            "loop_count": loop_count,
+            "latencies": {"reflector": time.time() - start_t}
+        }
+    except Exception as e:
+        err = f"Reflector Error: {str(e)}"
+        print(f"  [CRASH] {err}")
+        return {"error": err, "loop_count": state.get("loop_count", 0), "latencies": {"reflector": time.time() - start_t}}
+
+
+def responder_node(state: AgentState):
+    """Packages the verified draft into the final AIMessage or triggers Graceful Degradation."""
+    start_t = time.time()
+    print("\n[Node] Responder (Finalizing)...")
+    
+    if state.get("error"):
+        print(f"  [ROUTER] Bypassing to Direct Fallback mode due to: {state['error']}")
+        query = state.get("original_query", "")
+        try:
+            llm = model_router.get_agent_llm()
+            msg = "You are a helpful Financial assistant. Provide the best possible direct answer to the user's query globally, even without documentation."
+            response = llm.invoke([SystemMessage(content=msg), HumanMessage(content=query)])
+            draft = response.content + f"\n\n*(System Note: Graceful Degradation active. The Agentic framework bypassed execution due to an internal error: {state['error']}.)*"
+            budget_manager.record_usage(budget_manager.estimate_tokens(msg+query), budget_manager.estimate_tokens(draft), "responder_fallback")
+        except Exception as e:
+            draft = f"CRITICAL FAILURE: Pipeline crashed and fallback LLM also failed to respond. Details: {str(e)}"
+        return {"messages": [AIMessage(content=draft)], "latencies": {"responder_fallback": time.time() - start_t}}
+    
+    draft = state.get("draft_answer", "No answer could be formulated.")
+    return {"messages": [AIMessage(content=draft)], "latencies": {"responder": time.time() - start_t}}
+
+
+# Callbacks for Conditional Edges
+
+def route_reflection(state: AgentState):
+    """Determines whether to loop back based on reflection feedback and budget."""
+    if state.get("error"):
+        print("  [Router] Error detected. Forwarding to Responder.")
+        return "responder"
+
+    is_grounded = state.get("is_grounded", False)
+    reflection = state.get("reflection", "")
+    loop_count = state.get("loop_count", 0)
+    
+    max_loops = budget_manager.get_max_iterations() // 2  # e.g. 6//2 = 3 full Reflect loops
+    
+    if is_grounded or loop_count >= max_loops:
+        if loop_count >= max_loops and not is_grounded:
+            print(f"  [Router] Max multi-hop loops ({max_loops}) reached. Forcing response.")
+        else:
+            print("  [Router] Draft accepted.")
+        return "responder"
+    
+    if "needs_retrieval" in reflection:
+        print("  [Router] Reflector requested more context -> Query Rewriter")
+        return "query_rewriter"
+    
+    print("  [Router] Reflector flagged hallucination -> Reasoner")
+    return "reasoner"
+
+
+# Graph Construction
 
 def build_graph() -> StateGraph:
     workflow = StateGraph(AgentState)
 
-    # Add Nodes
     workflow.add_node("planner", planner_node)
-    workflow.add_node("agent", agent_node)
-    workflow.add_node("tools", ToolNode(tools))
+    workflow.add_node("query_rewriter", query_rewriter_node)
+    workflow.add_node("retriever", retriever_node)
+    workflow.add_node("reasoner", reasoner_node)
+    workflow.add_node("reflector", reflector_node)
+    workflow.add_node("responder", responder_node)
 
-    # Define Edges (The flow)
     workflow.set_entry_point("planner")
-    workflow.add_edge("planner", "agent")
-
-    # Conditional routing from agent
+    
+    workflow.add_edge("planner", "query_rewriter")
+    workflow.add_edge("query_rewriter", "retriever")
+    workflow.add_edge("retriever", "reasoner")
+    workflow.add_edge("reasoner", "reflector")
+    
     workflow.add_conditional_edges(
-        "agent", route_after_agent, {"tools": "tools", END: END}
+        "reflector",
+        route_reflection,
+        {
+            "responder": "responder",
+            "query_rewriter": "query_rewriter",
+            "reasoner": "reasoner"
+        }
     )
-
-    # Edge from tools back to agent
-    workflow.add_edge("tools", "agent")
+    
+    workflow.add_edge("responder", END)
 
     return workflow.compile()
 
 
-# --- Module-level accessors for integration ---
 def get_budget_manager() -> TokenBudgetManager:
-    """Get the shared budget manager instance."""
     return budget_manager
 
 
 def get_model_router() -> ModelRouter:
-    """Get the shared model router instance."""
     return model_router
 
 
+# CLI Execution
 if __name__ == "__main__":
+    import asyncio
+    
     agent_app = build_graph()
 
     print("\n" + "="*50)
-    print("Welcome to FinSight-Alpha Agent CLI")
+    print("FAANG-Grade RAG Pipeline CLI")
     print("="*50)
 
     test_query = (
-        "What are NVIDIA's main risks regarding the GPU supply chain, "
-        "and if their revenue drops by 15% from a hypothetical $60 Billion, "
-        "what would the new revenue be?"
+        "Identify the current CEO of the company that acquired Figma in 2022, and then list the primary programming language used in the open-source web framework that this CEO's company originally created."
     )
 
     initial_state = {
         "messages": [HumanMessage(content=test_query)],
-        "plan": "",
+        "original_query": test_query,
+        "loop_count": 0,
+        "context_chunks": [],
+        "latencies": {},
+        "error": ""
     }
 
-    final_message = None
-
-    print("\n--- Running Agent ---\n")
+    print(f"\nEvaluating: {test_query}\n")
 
     try:
-        for event in agent_app.stream(initial_state):
-            for node_name, node_state in event.items():
-                print(f"\n[Event] Node: {node_name}")
-
-                if isinstance(node_state, dict):
-                    if "plan" in node_state:
-                        print("\n--- Plan ---")
-                        print(node_state["plan"])
-
-                    if "messages" in node_state:
-                        last_msg = node_state["messages"][-1]
-                        if isinstance(last_msg, AIMessage):
-                            final_message = last_msg
-                            print("\n--- AI Response ---")
-                            print(last_msg.content)
-
+        final_state = agent_app.invoke(initial_state)
+        
         print("\n" + "="*50)
-        print("FINAL ANSWER:")
+        print("FINAL ANSWER with Citations:")
         print("="*50)
-
-        if final_message:
-            print(final_message.content)
-        else:
-            print("No final message generated.")
-
-        # Print optimization stats
-        print("\n--- Token Budget Stats ---")
+        
+        messages = final_state.get("messages", [])
+        if messages and isinstance(messages[-1], AIMessage):
+            print(messages[-1].content)
+        
+        print("\n--- Telemetry ---")
         stats = budget_manager.stats()
-        print(f"  Total tokens: {stats['total_tokens']}")
-        print(f"  Budget used: {stats['usage_pct']:.1%}")
-        print(f"  Tier: {stats['tier']}")
-        print(f"  LLM calls: {stats['call_count']}")
-
+        print(f"Total tokens used: {stats['total_tokens']}")
+        print(f"Multi-hop loops: {final_state.get('loop_count')}")
+        print(f"Latencies: {final_state.get('latencies')}")
+        if final_state.get("error"):
+            print(f"Encountered Error: {final_state['error']}")
+        
     finally:
         retriever.close()

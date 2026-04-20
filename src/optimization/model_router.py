@@ -10,10 +10,8 @@ all calls fall back to the 8B model.
 from typing import Optional
 from langchain_groq import ChatGroq
 from langchain_core.tools import BaseTool
-
 from src.optimization.config import config
 from src.optimization.token_budget import TokenBudgetManager, BudgetTier
-
 
 class ModelRouter:
     """

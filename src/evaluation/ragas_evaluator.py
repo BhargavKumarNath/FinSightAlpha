@@ -99,31 +99,33 @@ class RagasEvaluator:
             # degradation across the test suite
             self.budget_manager.reset()
 
-            initial_state = {"messages": [HumanMessage(content=question)]}
+            initial_state = {
+                "messages": [HumanMessage(content=question)],
+                "original_query": question,
+                "context_chunks": [],
+                "loop_count": 0
+            }
             final_state = self.agent_app.invoke(initial_state)
 
             messages = final_state.get("messages", [])
 
-            # Extract the final answer - find last AIMessage with actual content
-            # (skip AIMessages that only have tool_calls and no text)
+            # Extract the final answer
             final_answer = ""
             for msg in reversed(messages):
                 if isinstance(msg, AIMessage) and msg.content and msg.content.strip():
-                    # Skip if the content is just hallucinated JSON tool calls
-                    if '{"type": "function"' not in msg.content:
-                        final_answer = msg.content
-                        break
+                    final_answer = msg.content
+                    break
 
             if not final_answer:
                 # Fallback: use the very last message content
                 final_answer = messages[-1].content if messages else "No answer generated."
                 print(f"  [WARN] Could not find clean final answer, using fallback.")
 
-            # Extract ALL ToolMessage contents as retrieved contexts
+            # Extract retrieved contexts directly from the new state architecture
             retrieved_contexts = []
-            for msg in messages:
-                if isinstance(msg, ToolMessage) and msg.content:
-                    retrieved_contexts.append(msg.content)
+            context_chunks = final_state.get("context_chunks", [])
+            for c in context_chunks:
+                retrieved_contexts.append(c.get("text", ""))
 
             # Validation logging
             if not retrieved_contexts:

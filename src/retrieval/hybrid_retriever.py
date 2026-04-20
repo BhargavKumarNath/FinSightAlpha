@@ -22,7 +22,7 @@ from tqdm import tqdm
 import torch
 import warnings
 
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, CrossEncoder
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 from rank_bm25 import BM25Okapi
@@ -99,6 +99,7 @@ class _ResultCache:
 # Class-level shared model reference (for cross-module model sharing)
 class HybridRetriever:
     _shared_embedding_model: Optional[SentenceTransformer] = None
+    _shared_cross_encoder: Optional[CrossEncoder] = None
 
     def __init__(
         self,
@@ -114,7 +115,7 @@ class HybridRetriever:
 
         # GPU detection
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Embedding model running on: {self.device.upper()}")
+        print(f"Embedding models running on: {self.device.upper()}")
 
         # Model (shared across instances)
         if HybridRetriever._shared_embedding_model is None:
@@ -123,6 +124,14 @@ class HybridRetriever:
             )
         self.embedding_model = HybridRetriever._shared_embedding_model
         self.vector_size = self.embedding_model.get_embedding_dimension()
+
+        # Cross-Encoder Reranker
+        if HybridRetriever._shared_cross_encoder is None:
+            print("Loading Cross-Encoder Reranker (ms-marco-MiniLM-L-6-v2)...")
+            HybridRetriever._shared_cross_encoder = CrossEncoder(
+                "cross-encoder/ms-marco-MiniLM-L-6-v2", device=self.device
+            )
+        self.reranker = HybridRetriever._shared_cross_encoder
 
         # Qdrant
         os.makedirs(self.qdrant_path, exist_ok=True)
@@ -220,7 +229,7 @@ class HybridRetriever:
             self.bm25, self.corpus_metadata = pickle.load(f)
 
     # RRF
-    def _rrf(self, dense, sparse, k=60, top_n=10):
+    def _rrf(self, dense, sparse, k=60, top_n=20):
         scores = {}
         docs = {}
 
@@ -242,7 +251,7 @@ class HybridRetriever:
                 "id": doc_id,
                 "text": docs[doc_id]["text"],
                 "metadata": docs[doc_id]["metadata"],
-                "score": score,
+                "rrf_score": score,
             }
             for doc_id, score in ranked[:top_n]
         ]
@@ -304,7 +313,23 @@ class HybridRetriever:
 
         sparse = [{"id": int(i)} for i in idxs if scores[i] > 0]
 
-        results = self._rrf(dense, sparse, top_n=top_n)
+        # RRF top candidates (we fetch more, e.g., 20, for reranking)
+        rrf_results = self._rrf(dense, sparse, top_n=max(top_n * 2, 20))
+
+        if not rrf_results:
+            return []
+
+        # Cross-Encoder Reranking
+        pairs = [[query, res["text"]] for res in rrf_results]
+        rerank_scores = self.reranker.predict(pairs)
+        
+        # Add rerank scores to results and sort
+        for i, res in enumerate(rrf_results):
+            res["score"] = float(rerank_scores[i])
+            res["metadata"]["cross_encoder_score"] = float(rerank_scores[i])
+            
+        reranked_results = sorted(rrf_results, key=lambda x: x["score"], reverse=True)
+        results = reranked_results[:top_n]
 
         # Cache the results
         self._result_cache.put(query, top_n, fetch_k, results)
