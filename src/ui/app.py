@@ -364,8 +364,8 @@ with col_left:
     pct = budget.get("usage_pct", 0)
     
     # Bullet Gauges (Space Efficient)
-    st.plotly_chart(plot_bullet_gauge(pct, "Budget Burn", is_pct=True), use_container_width=True, config={'displayModeBar': False})
-    st.plotly_chart(plot_bullet_gauge(cache.get("hit_rate", 0), "Cache Hits", is_pct=True), use_container_width=True, config={'displayModeBar': False})
+    st.plotly_chart(plot_bullet_gauge(pct, "Budget Burn", is_pct=True), width='stretch', config={'displayModeBar': False})
+    st.plotly_chart(plot_bullet_gauge(cache.get("hit_rate", 0), "Cache Hits", is_pct=True), width='stretch', config={'displayModeBar': False})
     
     # Session Timeline Sparkline
     if st.session_state.telemetry["queries"]:
@@ -381,7 +381,7 @@ with col_left:
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", 
             xaxis_visible=False, yaxis_visible=False
         )
-        st.plotly_chart(fig_spark, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig_spark, width='stretch', config={'displayModeBar': False})
     
     # Metrics Container (Un-nested columns to prevent clipping)
     st.markdown("<br>", unsafe_allow_html=True)
@@ -477,12 +477,12 @@ with col_right:
         latest = st.session_state.messages[-1]
         
         # 1. Latency Breakdown
-        st.plotly_chart(plot_waterfall_latency(latest.get("latencies", {}), latest.get("rtt", 0.0)), use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(plot_waterfall_latency(latest.get("latencies", {}), latest.get("rtt", 0.0)), width='stretch', config={'displayModeBar': False})
         
         # 2. Knowledge Graph
         citations = re.findall(r'\[Doc\s*\d+:\s*([^\]]+)\]', latest["content"])
         fig_kg = plot_knowledge_graph(latest["query"], latest["trace"], citations)
-        st.plotly_chart(fig_kg, use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(fig_kg, width='stretch', config={'displayModeBar': False})
         
         # 3. Live Native Retrieval Metrics (MRR / NDCG)
         metrics = latest.get("retrieval_metrics", {})
@@ -495,7 +495,7 @@ with col_right:
         
     else:
         # Pre-execution active flowchart display
-        st.plotly_chart(plot_agent_lifecycle(), use_container_width=True, config={'displayModeBar': False})
+        st.plotly_chart(plot_agent_lifecycle(), width='stretch', config={'displayModeBar': False})
         st.markdown("<hr style='border-top:1px solid rgba(255,255,255,0.08);'>", unsafe_allow_html=True)
         st.markdown(
             "<div style='color:var(--text-muted); font-size:0.85rem; line-height: 1.5;'>"
