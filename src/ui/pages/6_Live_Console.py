@@ -359,7 +359,7 @@ with col_diag:
         )
         st.plotly_chart(
             waterfall_latency(latest.get("latencies", {}), latest.get("rtt", 0.0), height=300),
-            use_container_width=True,
+            width='stretch',
             config={"displayModeBar": False},
         )
         st.markdown("</div>", unsafe_allow_html=True)
@@ -375,7 +375,7 @@ with col_diag:
             knowledge_graph(
                 latest.get("query", ""), latest["trace"], citations, height=320
             ),
-            use_container_width=True,
+            width='stretch',
             config={"displayModeBar": False},
         )
         st.markdown("</div>", unsafe_allow_html=True)
@@ -407,7 +407,7 @@ with col_diag:
         )
         st.plotly_chart(
             agent_lifecycle_chart(),
-            use_container_width=True,
+            width='stretch',
             config={"displayModeBar": False},
         )
         st.markdown("</div>", unsafe_allow_html=True)

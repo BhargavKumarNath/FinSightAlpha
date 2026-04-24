@@ -47,7 +47,7 @@ with col_l:
         f"<div style='background:{SURFACE};border:1px solid {BORDER};border-radius:10px;padding:18px;'>",
         unsafe_allow_html=True,
     )
-    st.plotly_chart(ragas_trend_chart(RAGAS_TREND), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(ragas_trend_chart(RAGAS_TREND), width='stretch', config={"displayModeBar": False})
     st.markdown("</div>", unsafe_allow_html=True)
 
 with col_r:
@@ -55,7 +55,7 @@ with col_r:
         f"<div style='background:{SURFACE};border:1px solid {BORDER};border-radius:10px;padding:18px;'>",
         unsafe_allow_html=True,
     )
-    st.plotly_chart(retrieval_comparison_chart(RETRIEVAL_COMPARISON), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(retrieval_comparison_chart(RETRIEVAL_COMPARISON), width='stretch', config={"displayModeBar": False})
     st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -68,7 +68,7 @@ with col_l2:
         f"<div style='background:{SURFACE};border:1px solid {BORDER};border-radius:10px;padding:18px;'>",
         unsafe_allow_html=True,
     )
-    st.plotly_chart(latency_breakdown_chart(LATENCY_BREAKDOWN), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(latency_breakdown_chart(LATENCY_BREAKDOWN), width='stretch', config={"displayModeBar": False})
     st.markdown("</div>", unsafe_allow_html=True)
 
 with col_r2:
@@ -76,7 +76,7 @@ with col_r2:
         f"<div style='background:{SURFACE};border:1px solid {BORDER};border-radius:10px;padding:18px;'>",
         unsafe_allow_html=True,
     )
-    st.plotly_chart(quality_radar_chart(QUALITY_RADAR), use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(quality_radar_chart(QUALITY_RADAR), width='stretch', config={"displayModeBar": False})
     st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
