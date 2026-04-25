@@ -132,10 +132,10 @@ class TokenBudgetManager:
         """Return top_n for retrieval based on current tier."""
         tier = self.get_tier()
         if tier == BudgetTier.RED:
-            return 2
+            return 4
         elif tier == BudgetTier.YELLOW:
-            return 3
-        return 5  # Default (GREEN)
+            return 5
+        return 8  # Default (GREEN)
 
     def should_use_heavy_model(self) -> bool:
         """Heavy model is reserved for GREEN and YELLOW tiers."""

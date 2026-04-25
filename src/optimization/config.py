@@ -19,10 +19,10 @@ class OptimizationConfig:
     cache_similarity_threshold: float = 0.92  # Cosine sim threshold for cache hit
 
     # Dynamic Context Window
-    context_top_k: int = 3              # Max chunks injected per query
-    context_max_chunk_chars: int = 800   # Truncate individual chunks
-    context_max_total_tokens: int = 2000 # Hard cap on total context tokens
-    context_relevance_floor: float = 0.25  # Min similarity to include chunk
+    context_top_k: int = 8              # Max chunks injected per query
+    context_max_chunk_chars: int = 1500  # Truncate individual chunks
+    context_max_total_tokens: int = 6000 # Hard cap on total context tokens
+    context_relevance_floor: float = 0.15  # Min similarity to include chunk
 
     # Token Budget Manager
     session_token_budget: int = 100_000  # Total tokens per session

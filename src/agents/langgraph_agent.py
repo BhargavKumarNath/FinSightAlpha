@@ -1,9 +1,10 @@
 """
-FinSight-Alpha LangGraph Agent — FAANG-Grade RAG Architecture.
+FinSight-Alpha LangGraph Agent — Production-Grade RAG Architecture.
 
 Advanced Plan-Rewrite-Retrieve-Reason-Reflect Loop:
 - Explicit Multi-Hop Query Decomposition
 - Hybrid Search + Cross-Encoder Reranking
+- Dynamic Context Windowing with Token Budget Awareness
 - Citation Tracking
 - Post-Generation Hallucination Self-Correction
 """
@@ -33,6 +34,7 @@ from src.retrieval.hybrid_retriever import HybridRetriever
 from src.optimization.config import config
 from src.optimization.token_budget import TokenBudgetManager, BudgetTier
 from src.optimization.model_router import ModelRouter
+from src.optimization.context_window import DynamicContextWindow
 
 # Environment Setup
 load_dotenv()
@@ -52,7 +54,7 @@ def add_latencies(left: dict, right: dict) -> dict:
 
 # Advanced State Definition
 class AgentState(TypedDict):
-    """State for FAANG-grade RAG pipeline."""
+    """State for production-grade RAG pipeline."""
     messages: Annotated[Sequence[BaseMessage], add_messages]
     original_query: str
     plan: str
@@ -67,11 +69,20 @@ class AgentState(TypedDict):
 
 
 # Optimization Layer Initialization
-print("Initializing FAANG Retriever & Reranker...")
+print("Initializing Production Retriever & Reranker...")
 retriever = HybridRetriever()
 
 budget_manager = TokenBudgetManager()
 model_router = ModelRouter(budget_manager=budget_manager)
+
+# Dynamic Context Window — shares the retriever's embedding model
+context_window = DynamicContextWindow(
+    embedding_model=HybridRetriever._shared_embedding_model,
+    top_k=config.context_top_k,
+    max_chunk_chars=config.context_max_chunk_chars,
+    max_total_tokens=config.context_max_total_tokens,
+    relevance_floor=config.context_relevance_floor,
+)
 
 
 # System Prompts
@@ -95,10 +106,15 @@ REWRITER_PROMPT = (
 
 REASONER_PROMPT = (
     "You are an elite Financial Analyst. Answer the user's query using ONLY the provided retrieved chunks. "
-    "CRITICAL RULE: You MUST cite the exact [Doc X] for every claim you make. Do not mix sources without citing both. "
-    "If the documents do not contain the answer, explicitly state so. Do not fabricate information.\n"
-    "User Query: {original_query}\n\n"
-    "--- Context Chunks ---\n{context}"
+    "CRITICAL RULES:\n"
+    "1. You MUST cite the exact [Doc X: source_file] for every claim you make.\n"
+    "2. Do not mix sources without citing both.\n"
+    "3. If specific data (dollar amounts, percentages, dates) appears in the chunks, ALWAYS include it in your answer.\n"
+    "4. If the documents genuinely do not contain the answer, explicitly state so — but first carefully re-read ALL chunks.\n"
+    "5. Do not fabricate information.\n"
+    "6. Provide specific numbers and details whenever they appear in the context.\n"
+    "\nUser Query: {original_query}\n\n"
+    "--- Retrieved Context ---\n{context}"
 )
 
 REFLECTOR_PROMPT = (
@@ -204,6 +220,22 @@ def retriever_node(state: AgentState):
         return {"error": err, "latencies": {"retriever": time.time() - start_t}}
 
 
+def _format_context(context_chunks: List[Dict[str, Any]]) -> str:
+    """
+    Format context chunks into a clean, readable string for the LLM.
+    Uses actual newlines (not escaped) so the model can parse document boundaries.
+    """
+    if not context_chunks:
+        return "No relevant documents found."
+
+    parts = []
+    for c in context_chunks:
+        header = f"[Doc {c['doc_id']}: {c['source']}] (Relevance: {c['score']:.2f})"
+        parts.append(f"{header}\n{c['text']}")
+
+    return "\n\n---\n\n".join(parts)
+
+
 def reasoner_node(state: AgentState):
     """Synthesizes the final answer using strict citations."""
     if state.get("error"): return {"latencies": {}}
@@ -212,15 +244,15 @@ def reasoner_node(state: AgentState):
     try:
         query = state.get("original_query", "")
         context_chunks = state.get("context_chunks", [])
-        context_str = ""
-        for c in context_chunks:
-            context_str += f"[Doc {c['doc_id']}: {c['source']}] (Relevance: {c['score']:.2f})\\n{c['text']}\\n\\n"
+
+        # Format context with proper newlines and clear boundaries
+        context_str = _format_context(context_chunks)
 
         prompt = REASONER_PROMPT.format(original_query=query, context=context_str)
         llm = model_router.get_agent_llm()
         response = llm.invoke([SystemMessage(content=prompt)])
         draft = response.content
-        preview = draft.replace('\\n', ' ')[:100]
+        preview = draft.replace('\n', ' ')[:100]
         print(f"  Draft: {preview}...")
         budget_manager.record_usage(budget_manager.estimate_tokens(prompt), budget_manager.estimate_tokens(draft), "reasoner")
         return {"draft_answer": draft, "latencies": {"reasoner": time.time() - start_t}}
@@ -240,7 +272,8 @@ def reflector_node(state: AgentState):
         context_chunks = state.get("context_chunks", [])
         loop_count = state.get("loop_count", 0) + 1
 
-        context_str = "\\n".join([f"[Doc {c['doc_id']}]: {c['text'][:300]}..." for c in context_chunks])
+        # Format context with proper newlines
+        context_str = "\n\n".join([f"[Doc {c['doc_id']}]: {c['text'][:400]}..." for c in context_chunks])
         prompt = REFLECTOR_PROMPT.format(context=context_str, draft=draft)
         
         llm = model_router.get_planner_llm()
@@ -373,7 +406,7 @@ if __name__ == "__main__":
     agent_app = build_graph()
 
     print("\n" + "="*50)
-    print("FAANG-Grade RAG Pipeline CLI")
+    print("Production RAG Pipeline CLI")
     print("="*50)
 
     test_query = (
