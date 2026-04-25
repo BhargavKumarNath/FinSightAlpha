@@ -106,12 +106,14 @@ class HybridRetriever:
         collection_name: str = "sec_filings",
         qdrant_path: str = "data/qdrant_db",
         bm25_path: str = "data/bm25_index.pkl",
+        bm25_dir: str = "data",
         embedding_cache_size: int = 256,
         result_cache_ttl: int = 300,
     ):
         self.collection_name = collection_name
         self.qdrant_path = qdrant_path
         self.bm25_path = bm25_path
+        self.bm25_dir = bm25_dir
 
         # GPU detection
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -137,7 +139,8 @@ class HybridRetriever:
         os.makedirs(self.qdrant_path, exist_ok=True)
         self.qdrant_client = QdrantClient(path=self.qdrant_path)
 
-        # BM25
+        # BM25 (per-collection support)
+        self._bm25_cache: Dict[str, tuple] = {}  # collection -> (bm25, metadata)
         self.bm25: BM25Okapi = None
         self.corpus_metadata: List[Dict[str, Any]] = []
 
@@ -221,12 +224,102 @@ class HybridRetriever:
         print("Indexing complete")
 
     # LOAD BM25
-    def load_bm25(self) -> None:
-        if not os.path.exists(self.bm25_path):
-            raise FileNotFoundError("BM25 index not found. Run build_index first.")
+    def load_bm25(self, collection: str = None) -> None:
+        """Load BM25 index, with per-collection support."""
+        col = collection or self.collection_name
 
-        with open(self.bm25_path, "rb") as f:
-            self.bm25, self.corpus_metadata = pickle.load(f)
+        # Check per-collection BM25 first, then default
+        col_path = os.path.join(self.bm25_dir, f"bm25_{col}.pkl")
+        if os.path.exists(col_path):
+            path = col_path
+        elif os.path.exists(self.bm25_path):
+            path = self.bm25_path
+        else:
+            raise FileNotFoundError("BM25 index not found. Run build_index or pipeline first.")
+
+        with open(path, "rb") as f:
+            bm25, metadata = pickle.load(f)
+
+        self._bm25_cache[col] = (bm25, metadata)
+        self.bm25 = bm25
+        self.corpus_metadata = metadata
+
+    def _get_bm25(self, collection: str = None):
+        """Get BM25 index for a collection, loading if needed."""
+        col = collection or self.collection_name
+        if col in self._bm25_cache:
+            return self._bm25_cache[col]
+        self.load_bm25(col)
+        return self._bm25_cache.get(col, (self.bm25, self.corpus_metadata))
+
+    # INCREMENTAL INDEXING
+    def add_documents(
+        self,
+        texts: List[str],
+        metadatas: List[Dict[str, Any]],
+        collection: str = None,
+        batch_size: int = 100,
+    ) -> List[int]:
+        """
+        Incrementally add documents to an existing collection.
+
+        Returns the list of point IDs assigned.
+        """
+        col = collection or self.collection_name
+
+        # Ensure collection exists
+        if not self.qdrant_client.collection_exists(col):
+            from qdrant_client.models import VectorParams, Distance
+            self.qdrant_client.create_collection(
+                collection_name=col,
+                vectors_config=VectorParams(size=self.vector_size, distance=Distance.COSINE),
+            )
+
+        # Get current max ID
+        try:
+            info = self.qdrant_client.get_collection(col)
+            base_id = info.points_count or 0
+        except Exception:
+            base_id = 0
+
+        point_ids = []
+
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i : i + batch_size]
+            batch_metas = metadatas[i : i + batch_size]
+
+            embeddings = self.embedding_model.encode(
+                batch_texts, batch_size=batch_size, show_progress_bar=False
+            )
+
+            points = [
+                PointStruct(
+                    id=base_id + i + j,
+                    vector=embeddings[j].tolist(),
+                    payload={"text": batch_texts[j], "metadata": batch_metas[j]},
+                )
+                for j in range(len(batch_texts))
+            ]
+            point_ids.extend([p.id for p in points])
+
+            self.qdrant_client.upsert(collection_name=col, points=points)
+
+        # Invalidate BM25 cache for this collection (needs rebuild)
+        self._bm25_cache.pop(col, None)
+        self._result_cache.clear()
+
+        return point_ids
+
+    def remove_documents(self, point_ids: List[int], collection: str = None) -> None:
+        """Remove documents by point IDs from a collection."""
+        col = collection or self.collection_name
+        from qdrant_client.models import PointIdsList
+        self.qdrant_client.delete(
+            collection_name=col,
+            points_selector=PointIdsList(points=point_ids),
+        )
+        self._bm25_cache.pop(col, None)
+        self._result_cache.clear()
 
     # RRF
     def _rrf(self, dense, sparse, k=60, top_n=20):
