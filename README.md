@@ -6,6 +6,10 @@
 ![GitHub top language](https://img.shields.io/github/languages/top/bhargavkumarnath/finsightalpha)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
+
+## 🚀 Live Demo
+[![Streamlit App](https://img.shields.io/badge/Streamlit-Live%20App-FF4B4B?logo=streamlit)](https://finsightalpha.streamlit.app/)
+
 # FinSight-Alpha: Comprehensive System Architecture & Design Analysis
 
 > **A production-grade Agentic RAG system for institutional-quality financial document intelligence.**
@@ -24,6 +28,8 @@
 8. [Limitations & Improvements](#8-limitations--improvements)
 
 ---
+
+
 
 ## 1. System Overview
 
