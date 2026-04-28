@@ -312,8 +312,14 @@ with col_chat:
 
                 except requests.exceptions.ConnectionError:
                     status_ph.error(
-                        "Cannot connect to API. Make sure "
-                        "`uvicorn src.main:app --port 8000` is running."
+                        "🚨 **Backend API Not Found (Demo Mode)**\n\n"
+                        "You are currently viewing the **cloud-hosted UI demo**, which does not run the backend API. "
+                        "To execute live queries, you must run the entire system locally:\n\n"
+                        "**1.** Clone the repo: `git clone https://github.com/BhargavKumarNath/FinSightAlpha.git`\n"
+                        "**2.** Install backend dependencies: `pip install -r requirements-backend.txt`\n"
+                        "**3.** Start the AI server: `uvicorn src.main:app --host 0.0.0.0 --port 8000`\n"
+                        "**4.** Start this UI locally: `streamlit run src/ui/Home.py`\n\n"
+                        "*(Ensure you have a configured GPU environment if you are running the LLMs locally, or proper API keys in `.env`)*"
                     )
                 except Exception as e:
                     status_ph.error(f"Execution failure: {e}")

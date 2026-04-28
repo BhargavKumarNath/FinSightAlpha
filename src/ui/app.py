@@ -470,6 +470,17 @@ with col_mid:
                         
                     else:
                         st.error(f"API Error {res.status_code}")
+                except requests.exceptions.ConnectionError:
+                    st.error(
+                        "🚨 **Backend API Not Found (Demo Mode)**\n\n"
+                        "You are currently viewing the **cloud-hosted UI demo**, which does not run the backend API. "
+                        "To execute live queries, you must run the entire system locally:\n\n"
+                        "**1.** Clone the repo: `git clone https://github.com/BhargavKumarNath/FinSightAlpha.git`\n"
+                        "**2.** Install backend dependencies: `pip install -r requirements-backend.txt`\n"
+                        "**3.** Start the AI server: `uvicorn src.main:app --host 0.0.0.0 --port 8000`\n"
+                        "**4.** Start this UI locally: `streamlit run src/ui/app.py`\n\n"
+                        "*(Ensure you have a configured GPU environment if you are running the LLMs locally, or proper API keys in `.env`)*"
+                    )
                 except Exception as e:
                     st.error(f"Execution Failure: {e}")
 
