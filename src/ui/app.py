@@ -157,6 +157,10 @@ css = """
 """
 st.markdown(css, unsafe_allow_html=True)
 
+st.info(
+    "**Note:** This is a cloud-hosted UI demo. To use the full Agentic RAG backend, please download the repository and run it locally with a GPU."
+)
+
 # State Management
 if "messages" not in st.session_state:
     st.session_state.messages = []

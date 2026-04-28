@@ -33,6 +33,9 @@ st.set_page_config(
 )
 inject_css()
 
+st.info(
+    "**Note:** This is a cloud-hosted UI demo. To use the full Agentic RAG backend, please download the repository and run it locally with a GPU."
+)
 # Session state
 if "messages" not in st.session_state:
     st.session_state.messages = []

@@ -74,6 +74,11 @@ hero_banner(
 
 st.markdown("<br>", unsafe_allow_html=True)
 
+st.info(
+    "**Note:** This is a cloud-hosted UI demo. To use the full Agentic RAG backend, please download the repository and run it locally with a GPU."
+)
+
+
 # Capabilities
 section_title("🔬", "Core Capabilities", "What makes FinSight-Alpha different from a standard RAG pipeline.")
 capability_cards(CAPABILITIES)
