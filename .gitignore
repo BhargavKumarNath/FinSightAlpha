@@ -1,7 +1,7 @@
-data/
 .venv/
 .env
 .github/workflows/
 __pycache__/
 .pytest_cache/
 *.pyc
+data/qdrant_db/.lock
