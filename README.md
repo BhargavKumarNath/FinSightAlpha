@@ -26,6 +26,7 @@
 6. [What Elevates This System to Enterprise Grade](#6-what-elevates-this-system-to-enterprise-grade)
 7. [Dataset Flexibility — Using Any Dataset](#7-dataset-flexibility--using-any-dataset)
 8. [Limitations & Improvements](#8-limitations--improvements)
+9. [Installation & Quickstart](#9-installation--quickstart)
 
 ---
 
@@ -890,4 +891,91 @@ asyncio.run(pipeline._embed_and_index(chunks, collection="live_fundamentals"))
 | **No regression testing** | There is no CI/CD pipeline that runs the evaluation suite on code changes. |
 
 ---
+
+## 9. Installation & Quickstart
+
+### 9.1 Environment Setup
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/BhargavKumarNath/FinSightAlpha.git
+   cd FinSightAlpha
+   ```
+
+2. **Create and activate a virtual environment**:
+   ```bash
+   # Linux / macOS
+   python -m venv .venv
+   source .venv/bin/activate
+
+   # Windows (PowerShell)
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   ```
+
+3. **Install dependencies**:
+   ```bash
+   # Backend API & RAG Stack
+   pip install -r requirements-backend.txt
+
+   # Streamlit UI & Dashboards
+   pip install -r requirements.txt
+
+   # Development & Testing (pytest)
+   pip install pytest
+   ```
+
+4. **Configure Environment Variables**:
+   Create a `.env` file in the root directory:
+   ```env
+   GROQ_API_KEY=your_groq_api_key_here
+   HF_TOKEN=your_huggingface_token_optional
+   ```
+
+---
+
+### 9.2 Running the Application
+
+1. **Start the FastAPI Backend Service**:
+   ```bash
+   uvicorn src.main:app --host 0.0.0.0 --port 8000
+   ```
+   - Health check: `GET http://localhost:8000/health`
+   - Cache telemetry: `GET http://localhost:8000/cache/stats`
+   - Interactive Swagger API docs: `http://localhost:8000/docs`
+
+2. **Start the Streamlit Multi-Page Dashboard**:
+   ```bash
+   streamlit run src/ui/Home.py
+   ```
+   Or launch the direct Operational Console:
+   ```bash
+   streamlit run src/ui/app.py
+   ```
+
+---
+
+### 9.3 Running Automated Tests
+
+Run the full optimization and integration test suite:
+```bash
+python -m pytest tests/ -v
+```
+
+All integration suites test:
+- Centralized configuration loading
+- Dynamic context windowing with cosine ranking & truncation
+- Token budget manager tier transitions (`GREEN` → `YELLOW` → `RED`)
+- Semantic response cache hit/miss behavior & LRU eviction
+- Query batch embedding and result deduplication
+
+---
+
+### 9.4 Recent Updates & Stability Fixes
+
+- **Dependency Alignment**: Fully updated and decoupled [requirements-backend.txt](requirements-backend.txt) (`fastapi`, `uvicorn`, `langchain-groq`, `rank_bm25`, `tqdm`) and [requirements.txt](requirements.txt) (`streamlit==1.36.0`).
+- **Python 3.13 Compatibility**: Modernized dependencies for cross-platform wheels and removed incompatible legacy packages.
+- **Pytest Suite Refactoring**: Structured `tests/test_optimization.py` into standard pytest test functions with synchronized token budget tier assertions.
+- **Cleaned Repository**: Removed deprecated temporary patch and test scripts.
+
 
