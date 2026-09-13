@@ -16,6 +16,24 @@ const RETRIEVAL_TOP_N = 8;
 const MAX_REFLECT_LOOPS = 3;
 const CITATION_RE = /\[Doc\s*(\d+):/g;
 
+// Cross-encoder (ms-marco-MiniLM) rerank logits, not a 0-1 probability.
+// Empirically calibrated against this corpus (single NVIDIA 10-K): genuinely
+// relevant NVIDIA chunks score positive (measured: 0.25 to 6.44 across
+// several real queries), while chunks retrieved for entities/topics with no
+// indexed content (Apple, Tesla, AMD test queries) topped out between -6.9
+// and -11.3 -- a wide margin below zero. Chunks below this floor are noise:
+// dropping them keeps out-of-corpus sub-queries from diluting context with
+// irrelevant text, which both wastes token budget (a real cause of Groq TPM
+// rate-limit hits on multi-entity questions) and risks the reasoner weakly
+// citing something unrelated.
+const MIN_RELEVANCE_SCORE = -1;
+
+const NO_RELEVANT_CONTENT_RESPONSE =
+  "No content relevant to this question was found in the indexed filing. This system " +
+  "currently covers only NVIDIA's 10-K -- it has no data for other companies, real-time " +
+  "market figures (e.g. current P/E ratio), or filings beyond the one indexed document. " +
+  "Try a question about what's actually in NVIDIA's 10-K instead.";
+
 type ContextChunk = { docId: number; text: string; source: string; score: number };
 
 function formatContextForReasoner(chunks: ContextChunk[]): string {
@@ -67,6 +85,7 @@ export async function* runAgent(query: string): AsyncGenerator<ChatEvent, void, 
         for (const sq of subQueries) {
           const results = await retrieve(sq, RETRIEVAL_TOP_N);
           for (const r of results) {
+            if (r.score <= MIN_RELEVANCE_SCORE) continue;
             if (!existingTexts.has(r.text)) {
               existingTexts.add(r.text);
               contextChunks.push({ docId: docIdCounter, text: r.text, source: r.source, score: r.score });
@@ -81,6 +100,13 @@ export async function* runAgent(query: string): AsyncGenerator<ChatEvent, void, 
           detail: `${contextChunks.length} chunks in context, hybrid + cross-encoder rerank`,
           ms: Date.now() - t0,
         };
+
+        if (contextChunks.length === 0) {
+          draft = NO_RELEVANT_CONTENT_RESPONSE;
+          reflectionNote = "Skipped: no chunk cleared the relevance floor";
+          next = "responder";
+          continue;
+        }
       }
 
       t0 = Date.now();
@@ -108,7 +134,12 @@ export async function* runAgent(query: string): AsyncGenerator<ChatEvent, void, 
       }
     }
 
-    yield { type: "stage", stage: "respond", detail: "Finalizing answer", ms: 0 };
+    yield {
+      type: "stage",
+      stage: "respond",
+      detail: contextChunks.length === 0 ? "No chunk cleared the relevance floor; skipped reasoning" : "Finalizing answer",
+      ms: 0,
+    };
     const publicChunks: RetrievedChunk[] = contextChunks.map((c) => ({
       docId: c.docId,
       text: c.text,
@@ -140,10 +171,22 @@ export async function* runAgent(query: string): AsyncGenerator<ChatEvent, void, 
  * retrieved context to exceed it (413) or hit a request-rate limit (429).
  * Surface that as guidance rather than raw JSON (deployment_roadmap.md §8:
  * "surface a graceful rate-limited/retry state ... rather than a raw error").
+ *
+ * Separately, gpt-oss models (groq.ts's MODEL_LIGHT/MODEL_HEAVY) have a
+ * built-in browser_search tool baked into their chat template and will
+ * sometimes still emit a tool call for it -- typically on queries with a
+ * "live/current data" flavor -- even though no tools are configured here.
+ * Groq's server then rejects the completion outright (400,
+ * "tool_use_failed") since tool_choice is effectively none. `reasoning_effort:
+ * "low"` in groq.ts mitigates but doesn't fully prevent this, so it's
+ * surfaced here as guidance too, rather than leaking the raw JSON.
  */
 function friendlyErrorMessage(raw: string): string {
   if (/rate_limit_exceeded|429|413|request too large|tokens per minute/i.test(raw)) {
     return "The model's rate limit was hit for this question (it needed more context than the current quota allows in one minute). Try a narrower question, or retry in a moment.";
+  }
+  if (/tool_use_failed|tool choice is none|but model called a tool/i.test(raw)) {
+    return "This question seems to need live or external data that isn't part of the indexed filing, which this system can't fetch. Try rephrasing around what's actually in NVIDIA's 10-K.";
   }
   return raw;
 }
