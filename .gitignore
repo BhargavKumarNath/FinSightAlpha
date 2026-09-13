@@ -10,4 +10,6 @@ data/qdrant_db/.lock
 CLAUDE.md
 deployment_suggestion.md
 refactor.md
+
+deployment_roadmap.md
 .gitignore

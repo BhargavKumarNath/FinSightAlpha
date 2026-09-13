@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/*
+ * "Grounded ledger" design tokens (deployment_roadmap.md §5).
+ * Ink-dark reading surface is the primary identity; light mode is a
+ * warm off-white, never stark white. The brass/gold accent is reserved
+ * for Measured data, citations, and primary actions only — it is a
+ * provenance signal, not a decorative brand color.
+ */
+:root {
+  --color-bg: #f7f5f0;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1efe8;
+  --color-border: rgba(17, 17, 20, 0.1);
+  --color-border-strong: rgba(17, 17, 20, 0.18);
+  --color-text: #17171a;
+  --color-text-muted: #63636b;
+  --color-text-dim: #93939a;
+
+  --color-gold: #a97a2f;
+  --color-gold-dim: rgba(169, 122, 47, 0.12);
+  --color-slate: #4d5f82;
+  --color-slate-dim: rgba(77, 95, 130, 0.12);
+  --color-caveat: #a34b44;
+  --color-caveat-dim: rgba(163, 75, 68, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0b0b0d;
+    --color-surface: #141417;
+    --color-surface-2: #1a1a1e;
+    --color-border: rgba(232, 230, 225, 0.1);
+    --color-border-strong: rgba(232, 230, 225, 0.18);
+    --color-text: #e8e6e1;
+    --color-text-muted: #9a9aa1;
+    --color-text-dim: #63636b;
+
+    --color-gold: #c9a24b;
+    --color-gold-dim: rgba(201, 162, 75, 0.14);
+    --color-slate: #8fa3c9;
+    --color-slate-dim: rgba(143, 163, 201, 0.14);
+    --color-caveat: #c17870;
+    --color-caveat-dim: rgba(193, 120, 112, 0.12);
+  }
+}
+
+@theme inline {
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-2: var(--color-surface-2);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-dim: var(--color-text-dim);
+  --color-gold: var(--color-gold);
+  --color-gold-dim: var(--color-gold-dim);
+  --color-slate: var(--color-slate);
+  --color-slate-dim: var(--color-slate-dim);
+  --color-caveat: var(--color-caveat);
+  --color-caveat-dim: var(--color-caveat-dim);
+
+  --font-serif: var(--font-source-serif), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "SF Mono", Consolas, monospace;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: var(--color-gold-dim);
+  color: var(--color-text);
+}
