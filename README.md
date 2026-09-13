@@ -10,7 +10,7 @@
 ## 🚀 Live Demo
 [![Live on Vercel](https://img.shields.io/badge/Live-Vercel-000000?logo=vercel&logoColor=white)](https://frontend-two-delta-69.vercel.app/)
 
-The Streamlit UI has been retired (see `deployment_roadmap.md`) in favor of a Next.js frontend deployed at **https://frontend-two-delta-69.vercel.app/**. Source lives under `frontend/`; see §9.2 below to run it locally.
+A Next.js frontend is deployed at **https://frontend-two-delta-69.vercel.app/**. Source lives under `frontend/`; see §9.2 below to run it locally.
 
 # FinSight-Alpha: Comprehensive System Architecture & Design Analysis
 
@@ -957,7 +957,7 @@ asyncio.run(pipeline._embed_and_index(chunks, collection="live_fundamentals"))
    Serves the dashboards at `http://localhost:3000` plus the serverless
    `/api/chat` route -- a self-contained TypeScript port of the same
    plan/retrieve/reason/reflect agent (`src/agents/langgraph_agent.py`),
-   not a proxy to the FastAPI service above. See `deployment_roadmap.md`.
+   not a proxy to the FastAPI service above.
 
 ---
 
@@ -979,13 +979,12 @@ All integration suites test:
 
 ### 9.4 Recent Updates & Stability Fixes
 
-- **Streamlit UI retired**: the six-page Streamlit dashboard (`src/ui/`) and its `requirements.txt` have been removed in favor of a Next.js frontend under `frontend/` (see `deployment_roadmap.md`). The dashboard data-sourcing logic (`src/ui/components/data.py`) moved to `src/reporting/dashboard_data.py`, which has no UI dependency and now feeds `scripts/precompute.py` instead.
+- **Next.js frontend with live Console**: a full frontend under `frontend/` replaced the original dashboard, serving static reporting pages plus a live "Console" chat UI backed by a self-contained serverless `/api/chat` route (a TypeScript port of `src/agents/langgraph_agent.py`) and an "Evidence Trail" view that surfaces the retrieved chunks behind each live answer. Deployed at **https://frontend-two-delta-69.vercel.app/**. The dashboard data-sourcing logic lives in `src/reporting/dashboard_data.py`, which has no UI dependency and feeds `scripts/precompute.py` to generate the static JSON the frontend reads (`frontend/content/generated/*.json`).
 - **Data integrity reconciliation**: `data/processed/*.jsonl` had drifted from what was actually indexed in Qdrant and BM25 (288 vs. 284 chunks). Reconciled so the processed file matches the live index exactly.
 - **Test coverage added**: `tests/test_ingestion.py` and `tests/test_retrieval.py` cover parser and chunker correctness against the real committed filing, plus a registry/Qdrant/BM25 consistency check, alongside the existing `tests/test_optimization.py` suite.
 - **CI pipeline added**: `.github/workflows/ci.yml` runs lint checks, unit tests, and the data consistency check on every push, plus an end-to-end retrieval test on `main`.
-- **Dashboard now backed by real evaluation results**: `src/ui/components/data.py` loads RAGAS scores from `data/reports/ragas_evaluation_report.csv` instead of hardcoded placeholder numbers. Chart sections with no real underlying data (a multi-run trend, a six-metric quality radar, and a retrieval-method comparison that was never actually run) were removed rather than filled with invented numbers.
-- **Ingestion page corrected**: `src/ui/pages/5_Ingestion.py` now describes the actual parsing and chunking stack (`ParserRegistry` and `SemanticChunker`) and real configuration values, replacing an earlier description of tooling this codebase never used.
-- **Dependency Alignment**: Fully updated and decoupled [requirements-backend.txt](requirements-backend.txt) (`fastapi`, `uvicorn`, `langchain-groq`, `rank_bm25`, `tqdm`) and the now-removed `requirements.txt` (`streamlit==1.36.0`).
+- **Dashboards backed by real evaluation results**: `scripts/precompute.py` loads RAGAS scores from `data/reports/ragas_evaluation_report.csv` instead of hardcoded placeholder numbers. Chart sections with no real underlying data (a multi-run trend, a six-metric quality radar, and a retrieval-method comparison that was never actually run) were removed rather than filled with invented numbers.
+- **Dependency Alignment**: Fully updated and decoupled [requirements-backend.txt](requirements-backend.txt) (`fastapi`, `uvicorn`, `langchain-groq`, `rank_bm25`, `tqdm`).
 - **Python 3.13 Compatibility**: Modernized dependencies for cross-platform wheels and removed incompatible legacy packages.
 - **Pytest Suite Refactoring**: Structured `tests/test_optimization.py` into standard pytest test functions with synchronized token budget tier assertions.
 - **Cleaned Repository**: Removed deprecated temporary patch and test scripts.
