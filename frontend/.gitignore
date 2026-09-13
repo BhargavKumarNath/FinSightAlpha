@@ -1,0 +1,50 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+/test-results
+/playwright-report
+/e2e/.cache
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# content/generated/*.json (from scripts/precompute.py) is committed, not
+# ignored: Vercel's Git-based builds clone this repo and have no Python/uv
+# to regenerate it themselves (see deployment_roadmap.md §9, Phase 5). Run
+# `uv run scripts/precompute.py` from the repo root and commit the diff
+# whenever the underlying data changes (new filing, new eval run).
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
