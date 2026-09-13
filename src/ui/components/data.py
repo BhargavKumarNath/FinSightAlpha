@@ -88,6 +88,8 @@ if EVAL_RESULTS:
 else:
     RAGAS_SUMMARY = None
 
+INDEXED_CHUNK_COUNT = 284
+
 # Note: with only 3 real evaluated queries and 2 metrics (Faithfulness,
 # Answer Relevancy), there is no real historical "trend across runs" or
 # "6-dimension quality radar" to show (RAGAS_TREND / QUALITY_RADAR were

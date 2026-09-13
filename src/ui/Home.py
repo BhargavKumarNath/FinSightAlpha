@@ -12,7 +12,7 @@ from components.ui_components import (
     hero_banner, section_title, badge_html,
     capability_cards, tech_stack_grid, live_dot_html,
 )
-from components.data import FILING_TYPES, CAPABILITIES, TECH_STACK
+from components.data import FILING_TYPES, CAPABILITIES, TECH_STACK, RAGAS_SUMMARY, INDEXED_CHUNK_COUNT
 
 st.set_page_config(
     page_title="FinSight-Alpha",
@@ -50,6 +50,21 @@ with st.sidebar:
     )
 
 # Hero
+if RAGAS_SUMMARY:
+    hero_metrics = [
+        (f"{RAGAS_SUMMARY['avg_faithfulness'] * 100:.0f}%", "Avg Faithfulness",     PRIMARY),
+        (f"{RAGAS_SUMMARY['avg_answer_relevancy'] * 100:.0f}%", "Avg Answer Relevancy", ACCENT),
+        (str(RAGAS_SUMMARY["num_queries"]),                  "Queries Evaluated",    GREEN),
+        (str(INDEXED_CHUNK_COUNT),                           "Chunks Indexed",       PURPLE),
+    ]
+else:
+    hero_metrics = [
+        ("N/A", "Avg Faithfulness",     PRIMARY),
+        ("N/A", "Avg Answer Relevancy", ACCENT),
+        ("0",   "Queries Evaluated",    GREEN),
+        (str(INDEXED_CHUNK_COUNT), "Chunks Indexed", PURPLE),
+    ]
+
 hero_banner(
     title_colored="FinSight",
     title_plain="-Alpha",
@@ -64,12 +79,7 @@ hero_banner(
         ("RAGAS Eval", GREEN),
         ("Cross-Encoder", PURPLE),
     ],
-    metrics=[
-        ("91%", "Faithfulness",  PRIMARY),
-        ("90%", "Relevancy",     ACCENT),
-        ("88%", "Live MRR",      GREEN),
-        ("85%", "NDCG@5",        PURPLE),
-    ],
+    metrics=hero_metrics,
 )
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -119,7 +129,9 @@ section_title("🚀", "Quick Start", "Get the full pipeline running locally in t
 
 steps = [
     ("01", "Index your filings",
-     "python -m src.ingestion.sec_scraper\npython -m src.ingestion.document_processor\npython -m src.retrieval.hybrid_retriever  # builds index"),
+     'python -m src.ingestion.sec_scraper\n'
+     'python -c "from src.ingestion.pipeline import IngestionPipeline; '
+     'IngestionPipeline().ingest_directory_sync(\'data/raw\', collection=\'sec_filings\')"'),
     ("02", "Start the API",
      "uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"),
     ("03", "Launch this dashboard",

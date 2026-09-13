@@ -22,9 +22,9 @@
 2. [Architecture & Workflow](#2-architecture--workflow)
 3. [Data & Knowledge Base](#3-data--knowledge-base)
 4. [Agentic Capabilities](#4-agentic-capabilities)
-5. [Key Features & Innovations](#5-key-features--innovations)
-6. [What Elevates This System to Enterprise Grade](#6-what-elevates-this-system-to-enterprise-grade)
-7. [Dataset Flexibility — Using Any Dataset](#7-dataset-flexibility--using-any-dataset)
+5. [Key Features](#5-key-features)
+6. [Engineering Quality and Design Principles](#6-engineering-quality-and-design-principles)
+7. [Dataset Flexibility: Using Any Dataset](#7-dataset-flexibility-using-any-dataset)
 8. [Limitations & Improvements](#8-limitations--improvements)
 9. [Installation & Quickstart](#9-installation--quickstart)
 
@@ -264,10 +264,10 @@ The **ParserRegistry** (`src/ingestion/parsers/registry.py`) implements the **St
 | `TextParser` / `JSONParser` | `.txt`, `.md`, `.json`, `.jsonl` | Plain text normalization, JSONL chunk-format support |
 
 Every parser produces a canonical **`ParsedDocument`**. This is the universal contract between the parsing and chunking layers. It contains:
-- `content` — full clean text
-- `pages: List[ParsedPage]` — per page content with page numbers
-- `sections: List[DocumentSection]` — hierarchically detected sections
-- `metadata: DocumentMetadata` — source path, title, author, dates, content hash, page count
+- `content`: full clean text
+- `pages: List[ParsedPage]`: per page content with page numbers
+- `sections: List[DocumentSection]`: hierarchically detected sections
+- `metadata: DocumentMetadata`: source path, title, author, dates, content hash, page count
 
 ### Section Detection
 
@@ -389,7 +389,7 @@ class AgentState(TypedDict):
     error:          str
 ```
 
-Crucially, `context_chunks` uses `operator.add` as its reducer, meaning chunks from *all* retrieval passes across reflection loops are **accumulated** — the agent never discards previously retrieved context when looping back for more.
+Crucially, `context_chunks` uses `operator.add` as its reducer, meaning chunks from *all* retrieval passes across reflection loops are **accumulated**. The agent never discards previously retrieved context when looping back for more.
 
 ### Graph Topology
 
@@ -465,9 +465,9 @@ This implements a **self-correcting reasoning loop** with three exit conditions:
 |---|---|---|
 | **In-context (short-term)** | `AgentState.context_chunks` accumulator | Per query, across reflection loops |
 | **In-context messages** | `AgentState.messages` with `add_messages` reducer | Conversation turn |
-| **Semantic response cache (mid-term)** | `SemanticResponseCache` — embedding similarity LRU, TTL=1hr | Cross-session, in-process |
-| **Retrieval result cache (short-term)** | `_ResultCache` in `HybridRetriever` — TTL=300s | Per-process, per query hash |
-| **Embedding cache (session)** | `_EmbeddingCache` in `HybridRetriever` — LRU 256 | Per-process |
+| **Semantic response cache (mid-term)** | `SemanticResponseCache` (embedding similarity LRU, TTL=1hr) | Cross-session, in-process |
+| **Retrieval result cache (short-term)** | `_ResultCache` in `HybridRetriever` (TTL=300s) | Per-process, per query hash |
+| **Embedding cache (session)** | `_EmbeddingCache` in `HybridRetriever` (LRU 256) | Per-process |
 | **Document registry (persistent)** | JSON files per collection on disk | Permanent across restarts |
 | **BM25 index (persistent)** | Pickle files per collection on disk | Permanent across restarts |
 | **Qdrant vectors (persistent)** | Local Qdrant DB on disk | Permanent across restarts |
@@ -476,7 +476,7 @@ The system has **no conversational memory** across turns (no chat history inject
 
 ---
 
-## 5. Key Features & Innovations
+## 5. Key Features
 
 ### 5.1 Three-Layer Caching Architecture
 
@@ -514,7 +514,7 @@ Budget Usage       Tier      Behaviors
 
 Each LLM call records its estimated token usage via `estimate_tokens(text)` (4 chars ≈ 1 token heuristic). The `_call_log` stores the last 10 calls for debugging. `can_afford(n)` lets any component pre-check before making an expensive call.
 
-All parameters are overridable via `FINSIGHT_OPT_*` environment variables — zero code changes for tuning.
+All parameters are overridable via `FINSIGHT_OPT_*` environment variables, so tuning needs zero code changes.
 
 ---
 
@@ -540,7 +540,7 @@ Rather than injecting all retrieved chunks at full length (a common naive RAG mi
 3. Filters chunks below `relevance_floor=0.15`
 4. Takes top-K by similarity score
 5. Truncates each chunk to `max_chunk_chars=1500` at **sentence boundaries** (not mid-word)
-6. Enforces a hard `max_total_tokens=6000` cap — stops adding chunks if the budget would be exceeded, attempting to fit a partial chunk if >100 chars remain
+6. Enforces a hard `max_total_tokens=6000` cap: stops adding chunks if the budget would be exceeded, attempting to fit a partial chunk if >100 chars remain
 
 This eliminates low-signal padding from the context window, reducing noise injected into the reasoner.
 
@@ -589,7 +589,7 @@ An automated quality gate using two RAGAS metrics:
 | **Answer Relevancy** | Does the answer address the question? | Embedding-based (HuggingFace MiniLM) |
 
 **Engineering optimizations within the evaluator:**
-- Pre-computes all test query embeddings in a **single batch** (`QueryBatcher.batch_embed()`) before iterating — saves N individual encode calls
+- Pre-computes all test query embeddings in a **single batch** (`QueryBatcher.batch_embed()`) before iterating, saving N individual encode calls
 - Resets `TokenBudgetManager` between each test query to prevent inter-query budget bleed
 - `GroqSafeWrapper` intercepts `_generate()` to force `n=1` (Groq API doesn't support `n>1`), maintaining RAGAS compatibility
 - Quality gate: warns if average faithfulness < 0.70
@@ -615,11 +615,11 @@ The server computes **live MRR and NDCG** from citation overlap:
 
 ---
 
-## 6. What Elevates This System to Enterprise Grade
+## 6. Engineering Quality and Design Principles
 
 ### 6.1 Engineering Quality
 
-**Modularity**: Every layer is independently replaceable. Adding a new document format requires only subclassing `BaseParser` and calling `registry.register()` — zero changes to chunking, indexing, or agent code. The `ParsedDocument` contract enforces this boundary.
+**Modularity**: Every layer is independently replaceable. Adding a new document format requires only subclassing `BaseParser` and calling `registry.register()`, with zero changes to chunking, indexing, or agent code. The `ParsedDocument` contract enforces this boundary.
 
 **Separation of concerns** is strict across 7 distinct modules:
 ```
@@ -675,7 +675,7 @@ main.py       → Orchestrate (API)
 
 ---
 
-## 7. Dataset Flexibility — Using Any Dataset
+## 7. Dataset Flexibility: Using Any Dataset
 
 > **FinSight-Alpha is architecturally dataset-agnostic.** The SEC EDGAR focus is a *default*. The entire ingestion, retrieval, and agent stack beneath is completely generic.
 
@@ -698,7 +698,7 @@ from src.ingestion.pipeline import IngestionPipeline
 
 pipeline = IngestionPipeline()
 
-# Any PDF — earnings transcript, research paper, central bank report
+# Any PDF: earnings transcript, research paper, central bank report
 result = pipeline.ingest_file_sync(
     "data/raw/apple_earnings_q4_2025.pdf",
     collection="apple_earnings"        # ← your own isolated collection
@@ -749,7 +749,7 @@ Adding support for a new format requires **one new file** nothing else changes. 
 2. Implement `supported_extensions()` and `parse()` both return a `ParsedDocument`
 3. Register it in `ParserRegistry.default()`
 
-**Example — CSV parser:**
+**Example: CSV parser**
 
 ```python
 # src/ingestion/parsers/csv_parser.py
@@ -819,7 +819,7 @@ def fetch_fundamentals_from_api(ticker: str) -> ParsedDocument:
         source_path=f"api://{ticker}/fundamentals",
         source_name=f"{ticker}_fundamentals",
         file_type=".api",
-        title=f"{ticker} Fundamentals — {data['period']}",
+        title=f"{ticker} Fundamentals ({data['period']})",
     )
     meta.compute_hash(text)
     return ParsedDocument(
@@ -850,7 +850,7 @@ asyncio.run(pipeline._embed_and_index(chunks, collection="live_fundamentals"))
 | `IngestionPipeline` | Fully generic | No changes needed |
 | `CollectionManager` / `DocumentRegistry` | Fully generic | No changes needed |
 | `TokenBudgetManager`, `ModelRouter`, all caches | Fully generic | No changes needed |
-| `RagasEvaluator` | Fully generic | No changes needed — evaluates any domain |
+| `RagasEvaluator` | Fully generic | No changes needed (evaluates any domain) |
 | `FastAPI` server (`main.py`) | Fully generic | No changes needed |
 
 ---
@@ -878,7 +878,7 @@ asyncio.run(pipeline._embed_and_index(chunks, collection="live_fundamentals"))
 | Gap | Impact |
 |---|---|
 | **No conversation history** | Each query is stateless. A user cannot follow up with "How does that compare to last year?" without repeating full context. |
-| **Reflector uses truncated context** | `[:400]` chars per chunk in the reflection prompt — the reflector may miss details in long chunks, leading to false "needs_more_info" signals. |
+| **Reflector uses truncated context** | `[:400]` chars per chunk in the reflection prompt: the reflector may miss details in long chunks, leading to false "needs_more_info" signals. |
 | **Token estimation is approximate** | `len(text) * 0.25` (4 chars per token) can be significantly wrong for financial data with many numbers, symbols, and short tokens. Over-counting leads to premature tier escalation. |
 | **No query routing** | All queries go through the full 5-node pipeline. Simple factual queries (e.g., "What does NVIDIA stand for?") that don't need multi-hop planning still execute the planner and rewriter. |
 
@@ -926,7 +926,10 @@ asyncio.run(pipeline._embed_and_index(chunks, collection="live_fundamentals"))
    ```
 
 4. **Configure Environment Variables**:
-   Create a `.env` file in the root directory:
+   Copy [.env.example](.env.example) to `.env` and fill in real values:
+   ```bash
+   cp .env.example .env
+   ```
    ```env
    GROQ_API_KEY=your_groq_api_key_here
    HF_TOKEN=your_huggingface_token_optional
@@ -973,9 +976,50 @@ All integration suites test:
 
 ### 9.4 Recent Updates & Stability Fixes
 
+- **Data integrity reconciliation**: `data/processed/*.jsonl` had drifted from what was actually indexed in Qdrant and BM25 (288 vs. 284 chunks). Reconciled so the processed file matches the live index exactly.
+- **Test coverage added**: `tests/test_ingestion.py` and `tests/test_retrieval.py` cover parser and chunker correctness against the real committed filing, plus a registry/Qdrant/BM25 consistency check, alongside the existing `tests/test_optimization.py` suite.
+- **CI pipeline added**: `.github/workflows/ci.yml` runs lint checks, unit tests, and the data consistency check on every push, plus an end-to-end retrieval test on `main`.
+- **Dashboard now backed by real evaluation results**: `src/ui/components/data.py` loads RAGAS scores from `data/reports/ragas_evaluation_report.csv` instead of hardcoded placeholder numbers. Chart sections with no real underlying data (a multi-run trend, a six-metric quality radar, and a retrieval-method comparison that was never actually run) were removed rather than filled with invented numbers.
+- **Ingestion page corrected**: `src/ui/pages/5_Ingestion.py` now describes the actual parsing and chunking stack (`ParserRegistry` and `SemanticChunker`) and real configuration values, replacing an earlier description of tooling this codebase never used.
 - **Dependency Alignment**: Fully updated and decoupled [requirements-backend.txt](requirements-backend.txt) (`fastapi`, `uvicorn`, `langchain-groq`, `rank_bm25`, `tqdm`) and [requirements.txt](requirements.txt) (`streamlit==1.36.0`).
 - **Python 3.13 Compatibility**: Modernized dependencies for cross-platform wheels and removed incompatible legacy packages.
 - **Pytest Suite Refactoring**: Structured `tests/test_optimization.py` into standard pytest test functions with synchronized token budget tier assertions.
 - **Cleaned Repository**: Removed deprecated temporary patch and test scripts.
+
+### 9.5 Adding More Filings to the Real Dataset
+
+The committed dataset currently holds one filing: NVIDIA's 10-K (accession `0001045810-26-000021`) under `data/raw/sec-edgar-filings/NVDA/10-K/`. To add more real filings, for example a different ticker or a newer quarterly report:
+
+1. **Download the filing** with `src/ingestion/sec_scraper.py`:
+   ```bash
+   python -c "
+   from src.ingestion.sec_scraper import SECScraper
+   scraper = SECScraper(company_name='Your Name', email_address='you@example.com')
+   scraper.fetch_filings(tickers=['AAPL'], form_types=['10-K'], limit=1)
+   "
+   ```
+   This follows the SEC's required user-agent format and downloads into `data/raw/sec-edgar-filings/<TICKER>/<FORM>/<ACCESSION>/full-submission.txt`.
+
+2. **Ingest it into the live index** with `IngestionPipeline`. This parses, chunks, embeds, and upserts into Qdrant, updates the document registry, and rebuilds the BM25 index automatically:
+   ```bash
+   python -c "
+   from src.ingestion.pipeline import IngestionPipeline
+   pipeline = IngestionPipeline()
+   result = pipeline.ingest_directory_sync('data/raw', collection='sec_filings')
+   print(f'Indexed {result.total_chunks} chunks from {result.successful} files, {result.skipped} already indexed')
+   "
+   ```
+   Filings already in the registry are skipped by content hash. Pass `force=True` to `ingest_directory_sync` to re-index a filing that changed on disk.
+
+3. **Regenerate the standalone processed JSONL**, only needed if you inspect `data/processed/` directly since it is not read at query time:
+   ```bash
+   python -m src.ingestion.document_processor
+   ```
+
+4. **Verify consistency** before committing the updated data files:
+   ```bash
+   python -m pytest tests/test_retrieval.py::test_index_consistency_registry_qdrant_bm25_agree -v
+   ```
+   This confirms the document registry's chunk count, Qdrant's point count, and both BM25 pickle files all agree, the same check that runs in CI.
 
 

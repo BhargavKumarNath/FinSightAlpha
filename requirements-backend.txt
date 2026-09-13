@@ -29,7 +29,10 @@ qdrant-client>=1.9.1
 
 
 pypdf>=4.2.0
+pdfplumber>=0.11.0
+PyMuPDF>=1.24.0
 beautifulsoup4>=4.14.3
+sec-edgar-downloader>=5.0.3
 
 # Evaluation
 ragas>=0.1.0
