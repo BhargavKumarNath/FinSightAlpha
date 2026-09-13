@@ -7,134 +7,94 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import streamlit as st
-from components.theme import inject_css, PRIMARY, ACCENT, GREEN, RED, PURPLE, TEAL, PINK
-from components.theme import SURFACE, SURFACE2, BORDER, TEXT, TEXT_MUTED, TEXT_DIM, MONO, DISPLAY
-from components.ui_components import section_title, stat_metric, badge_html, info_table
-from components.charts import (
-    ragas_trend_chart, retrieval_comparison_chart,
-    latency_breakdown_chart, quality_radar_chart,
-)
-from components.data import RAGAS_TREND, RETRIEVAL_COMPARISON, LATENCY_BREAKDOWN, QUALITY_RADAR
+import plotly.graph_objects as go
+from components.theme import inject_css, PRIMARY, ACCENT, GREEN
+from components.theme import SURFACE, BORDER, TEXT_MUTED, TEXT_DIM, MONO
+from components.ui_components import section_title, stat_metric
+from components.charts import latency_breakdown_chart
+from components.data import EVAL_RESULTS, RAGAS_SUMMARY, LATENCY_BREAKDOWN
 
 st.set_page_config(page_title="Performance · FinSight-Alpha", page_icon="📊", layout="wide")
 inject_css()
 
 section_title(
     "📊", "Performance Metrics",
-    "RAGAS evaluation results, retrieval benchmarks, and latency profiling across pipeline iterations.",
+    "RAGAS evaluation results computed against the live index, and pipeline latency profiling.",
 )
 
-# Top KPI row
-kpi_cols = st.columns(6, gap="small")
-kpis = [
-    ("91%",  "Faithfulness",    PRIMARY),
-    ("90%",  "Answer Relevancy",ACCENT),
-    ("88%",  "Live MRR",        GREEN),
-    ("85%",  "NDCG@5",          PURPLE),
-    ("2.1s", "Median RTT",      PINK),
-    ("94%",  "Cache Hit Rate",  TEAL),
-]
-for col, (val, label, color) in zip(kpi_cols, kpis):
-    stat_metric(col, val, label, color)
+# Top KPI row — only metrics with a real, stored artifact behind them.
+if RAGAS_SUMMARY:
+    kpi_cols = st.columns(3, gap="small")
+    kpis = [
+        (f"{RAGAS_SUMMARY['avg_faithfulness'] * 100:.0f}%",     "Avg Faithfulness",     PRIMARY),
+        (f"{RAGAS_SUMMARY['avg_answer_relevancy'] * 100:.0f}%", "Avg Answer Relevancy", ACCENT),
+        (str(RAGAS_SUMMARY["num_queries"]),                     "Queries Evaluated",    GREEN),
+    ]
+    for col, (val, label, color) in zip(kpi_cols, kpis):
+        stat_metric(col, val, label, color)
+    st.markdown(
+        f"<div style='font-size:10px;color:{TEXT_DIM};margin-top:8px;'>"
+        f"Computed from <code>data/reports/ragas_evaluation_report.csv</code> (RAGAS Faithfulness + Answer Relevancy, "
+        f"LLM-as-judge, {RAGAS_SUMMARY['num_queries']} real queries). MRR, NDCG, round-trip time, and cache hit rate "
+        f"are computed live per query and are not persisted historically — see the Live Console page for real "
+        f"per-query values.</div>",
+        unsafe_allow_html=True,
+    )
+else:
+    st.warning(
+        "No RAGAS evaluation report found at `data/reports/ragas_evaluation_report.csv`. "
+        "Run the evaluator (`src/evaluation/ragas_evaluator.py`) to generate one before this page can show real scores."
+    )
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# Charts row 1
-col_l, col_r = st.columns(2, gap="large")
-
-with col_l:
+# Real per-query RAGAS scores (replaces a previously fabricated 5-run "trend"
+# chart — there is no historical multi-run data to plot, only these
+# real single-run results).
+if EVAL_RESULTS:
+    section_title(
+        "📈", "Per-Query RAGAS Scores",
+        f"{len(EVAL_RESULTS)} real evaluation queries scored against the live index.",
+    )
+    questions = [r["q"][:44] + ("…" if len(r["q"]) > 44 else "") for r in EVAL_RESULTS]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(name="Faithfulness", x=questions, y=[r["faith"] for r in EVAL_RESULTS], marker=dict(color=PRIMARY)))
+    fig.add_trace(go.Bar(name="Answer Relevancy", x=questions, y=[r["relev"] for r in EVAL_RESULTS], marker=dict(color=ACCENT)))
+    fig.update_layout(
+        barmode="group",
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=TEXT_MUTED, family=MONO, size=10),
+        margin=dict(l=10, r=10, t=10, b=10), height=260,
+        yaxis=dict(range=[0, 1], showgrid=True, gridcolor=BORDER, zeroline=False),
+        xaxis=dict(showgrid=False),
+        legend=dict(orientation="h", y=1.18),
+    )
     st.markdown(
         f"<div style='background:{SURFACE};border:1px solid {BORDER};border-radius:10px;padding:18px;'>",
         unsafe_allow_html=True,
     )
-    st.plotly_chart(ragas_trend_chart(RAGAS_TREND), width='stretch', config={"displayModeBar": False})
+    st.plotly_chart(fig, width='stretch', config={"displayModeBar": False})
     st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-with col_r:
-    st.markdown(
-        f"<div style='background:{SURFACE};border:1px solid {BORDER};border-radius:10px;padding:18px;'>",
-        unsafe_allow_html=True,
-    )
-    st.plotly_chart(retrieval_comparison_chart(RETRIEVAL_COMPARISON), width='stretch', config={"displayModeBar": False})
-    st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# Charts row 2
-col_l2, col_r2 = st.columns(2, gap="large")
-
-with col_l2:
-    st.markdown(
-        f"<div style='background:{SURFACE};border:1px solid {BORDER};border-radius:10px;padding:18px;'>",
-        unsafe_allow_html=True,
-    )
-    st.plotly_chart(latency_breakdown_chart(LATENCY_BREAKDOWN), width='stretch', config={"displayModeBar": False})
-    st.markdown("</div>", unsafe_allow_html=True)
-
-with col_r2:
-    st.markdown(
-        f"<div style='background:{SURFACE};border:1px solid {BORDER};border-radius:10px;padding:18px;'>",
-        unsafe_allow_html=True,
-    )
-    st.plotly_chart(quality_radar_chart(QUALITY_RADAR), width='stretch', config={"displayModeBar": False})
-    st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# Detailed retrieval table
-section_title("🔬", "Retrieval Stack — Detailed Breakdown")
-
+# Per-phase latency — illustrative only (no historical run is stored;
+# latencies are only ever computed live per query, see AgentState['latencies']).
+section_title("⏱️", "Latency Budget Analysis")
 st.markdown(
-    f"<div style='background:{SURFACE};border:1px solid {BORDER};border-radius:10px;padding:20px;'>",
+    f"<div style='font-size:10px;color:{TEXT_DIM};margin-bottom:10px;'>"
+    f"Illustrative example shape, not a measured run — per-node latency is only ever computed live per query "
+    f"and is not persisted to disk. Real per-query latencies are shown in the Live Console.</div>",
     unsafe_allow_html=True,
 )
 
-def f1_color(val):
-    try:
-        v = float(val.rstrip("%")) / 100
-        return GREEN if v > 0.85 else TEXT
-
-    except Exception:
-        return TEXT
-
-rows = []
-for i, r in enumerate(RETRIEVAL_COMPARISON):
-    is_active = i == len(RETRIEVAL_COMPARISON) - 1
-    status = badge_html("ACTIVE", GREEN) if is_active else badge_html("BASELINE", TEXT_MUTED)
-    method_color = PRIMARY if is_active else TEXT
-    rows.append([
-        f"<span style='color:{method_color};font-family:{MONO};font-size:11px;'>{r['method']}</span>",
-        f"{r['precision']*100:.0f}%",
-        f"{r['recall']*100:.0f}%",
-        f"<b>{r['f1']*100:.0f}%</b>" if is_active else f"{r['f1']*100:.0f}%",
-        f"{r['latency']}s",
-        status,
-    ])
-
-info_table(
-    headers=["Method", "Precision", "Recall", "F1 Score", "Latency", "Status"],
-    rows=rows,
-    col_colors={
-        1: TEXT_MUTED,
-        2: TEXT_MUTED,
-        3: lambda v: GREEN if "<b>" in str(v) else TEXT,
-        4: TEXT_DIM,
-    },
-)
-
 st.markdown(
-    f"<div style='margin-top:14px;padding:10px 14px;background:{PRIMARY}15;border-radius:6px;"
-    f"font-family:{MONO};font-size:11px;color:{PRIMARY};'>"
-    f"◆ Active stack: Hybrid RRF + Cross-Encoder achieves <b>F1 0.89</b>, "
-    f"a <b>+56% gain</b> over BM25-only baseline at a cost of 0.53s extra latency.</div>",
+    f"<div style='background:{SURFACE};border:1px solid {BORDER};border-radius:10px;padding:18px;'>",
     unsafe_allow_html=True,
 )
+st.plotly_chart(latency_breakdown_chart(LATENCY_BREAKDOWN), width='stretch', config={"displayModeBar": False})
 st.markdown("</div>", unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
-
-# Per-phase latency detail
-section_title("⏱️", "Latency Budget Analysis")
 
 total_ms = sum(d["ms"] for d in LATENCY_BREAKDOWN)
 cols = st.columns(len(LATENCY_BREAKDOWN), gap="small")
