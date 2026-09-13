@@ -1,7 +1,13 @@
 .venv/
 .env
-.github/workflows/
 __pycache__/
 .pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 *.pyc
 data/qdrant_db/.lock
+CLAUDE.md
+deployment_suggestion.md
+refactor.md
+.gitignore
