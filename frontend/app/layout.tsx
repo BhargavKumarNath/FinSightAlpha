@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
+import { MotionConfig } from "framer-motion";
 import "./globals.css";
 import { NavBar } from "./_components/NavBar";
 
@@ -28,9 +29,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geist.variable} ${jetbrainsMono.variable} h-full`}
     >
       <body className="min-h-full flex flex-col font-sans antialiased">
-        <div className="grid-texture pointer-events-none fixed inset-x-0 top-0 h-[480px]" />
-        <NavBar />
-        <main className="relative flex-1">{children}</main>
+        <MotionConfig reducedMotion="user">
+          <div className="grid-texture pointer-events-none fixed inset-x-0 top-0 h-[480px]" />
+          <NavBar />
+          <main className="relative flex-1">{children}</main>
+        </MotionConfig>
       </body>
     </html>
   );

@@ -128,7 +128,22 @@ export async function* runAgent(query: string): AsyncGenerator<ChatEvent, void, 
       chunks: publicChunks,
     };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown pipeline error.";
-    yield { type: "error", message };
+    const raw = err instanceof Error ? err.message : "Unknown pipeline error.";
+    console.error("[rag/agent] pipeline error:", raw);
+    yield { type: "error", message: friendlyErrorMessage(raw) };
   }
+}
+
+/**
+ * Groq's free/on-demand tier has an 8000 TPM ceiling per model; a broad
+ * question that triggers multiple reflect loops can aggregate enough
+ * retrieved context to exceed it (413) or hit a request-rate limit (429).
+ * Surface that as guidance rather than raw JSON (deployment_roadmap.md §8:
+ * "surface a graceful rate-limited/retry state ... rather than a raw error").
+ */
+function friendlyErrorMessage(raw: string): string {
+  if (/rate_limit_exceeded|429|413|request too large|tokens per minute/i.test(raw)) {
+    return "The model's rate limit was hit for this question (it needed more context than the current quota allows in one minute). Try a narrower question, or retry in a moment.";
+  }
+  return raw;
 }

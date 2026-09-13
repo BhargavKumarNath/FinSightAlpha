@@ -3,6 +3,7 @@ import { getVectorIndex } from "./vectorIndex";
 import { buildBm25Index, bm25Scores, tokenize, type Bm25Index } from "./bm25";
 import { embedQuery } from "./embed";
 import { rerankScores } from "./rerank";
+import { reciprocalRankFusion as rrfFuse } from "./rrf";
 import type { IndexedChunk } from "./types";
 
 /**
@@ -12,8 +13,6 @@ import type { IndexedChunk } from "./types";
  * Python version are session-scoped optimizations, not correctness --
  * skipped here (see deployment_roadmap.md §9, Phase 2 deviations).
  */
-
-const RRF_K = 60;
 
 let bm25Singleton: { index: Bm25Index; ids: number[] } | null = null;
 
@@ -46,17 +45,11 @@ function reciprocalRankFusion(
   chunksById: Map<number, IndexedChunk>,
   topN: number,
 ): { id: number; chunk: IndexedChunk; rrfScore: number }[] {
-  const scores = new Map<number, number>();
-  denseRanked.forEach((id, rank) => {
-    scores.set(id, (scores.get(id) ?? 0) + 1 / (RRF_K + rank + 1));
-  });
-  sparseRanked.forEach((id, rank) => {
-    scores.set(id, (scores.get(id) ?? 0) + 1 / (RRF_K + rank + 1));
-  });
-  return [...scores.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, topN)
-    .map(([id, rrfScore]) => ({ id, chunk: chunksById.get(id)!, rrfScore }));
+  return rrfFuse(denseRanked, sparseRanked, topN).map(({ id, rrfScore }) => ({
+    id,
+    chunk: chunksById.get(id)!,
+    rrfScore,
+  }));
 }
 
 export type ScoredChunk = { id: number; text: string; source: string; score: number };

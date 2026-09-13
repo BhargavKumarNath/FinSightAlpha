@@ -9,7 +9,14 @@ export default function SystemPage() {
   const data = getSystemData();
   const evaluation = getEvaluationData();
   const corpus = getCorpusData();
-  const { pipeline, budget_tiers, model_router_table, cache_config, context_window } = data;
+  const {
+    pipeline,
+    budget_tiers,
+    model_router_table,
+    model_router_caveat,
+    cache_config,
+    context_window,
+  } = data;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
@@ -125,6 +132,14 @@ export default function SystemPage() {
             </tbody>
           </table>
         </Card>
+        {model_router_caveat && (
+          <p className="mt-3 text-xs leading-relaxed text-[var(--color-text-dim)]">
+            <Badge tone="amber" className="mr-1.5">
+              Stale
+            </Badge>
+            {model_router_caveat}
+          </p>
+        )}
       </section>
 
       <section className="grid gap-6 sm:grid-cols-2">

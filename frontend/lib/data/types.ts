@@ -52,6 +52,7 @@ export interface SystemData {
   };
   budget_tiers: BudgetTier[];
   model_router_table: ModelRouterRow[];
+  model_router_caveat: string;
   cache_config: KeyValueRow[];
   context_window: ContextWindowRow[];
 }
