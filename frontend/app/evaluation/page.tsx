@@ -1,9 +1,11 @@
-import { getEvaluationData } from "@/lib/data/loaders";
+import { getEvaluationData, getConsoleData } from "@/lib/data/loaders";
 import { SectionHeader, Card, Badge, ProvenanceChip, RadialProgress, Sparkline } from "@/lib/ui";
-import { MetricGauge } from "./_components/MetricGauge";
+import { QueryResultCard } from "./_components/QueryResultCard";
 
 export default function EvaluationPage() {
   const data = getEvaluationData();
+  const { items: replays } = getConsoleData();
+  const responseByQuestion = new Map(replays.map((r) => [r.question, r.response]));
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-20">
@@ -80,20 +82,14 @@ export default function EvaluationPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {data.rows.map((row, i) => (
-                <Card key={i} glow="indigo" className="flex flex-col gap-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="font-mono text-[11px] text-[var(--color-text-dim)]">
-                      Q{String(i + 1).padStart(2, "0")}
-                    </span>
-                  </div>
-                  <p className="line-clamp-3 text-sm text-[var(--color-text)]">
-                    {row.question}
-                  </p>
-                  <div className="space-y-3 border-t border-white/[0.06] pt-4">
-                    <MetricGauge label="Faithfulness" value={row.faithfulness} color="emerald" />
-                    <MetricGauge label="Answer relevancy" value={row.answer_relevancy} color="sky" />
-                  </div>
-                </Card>
+                <QueryResultCard
+                  key={i}
+                  index={i}
+                  question={row.question}
+                  response={responseByQuestion.get(row.question)}
+                  faithfulness={row.faithfulness}
+                  answerRelevancy={row.answer_relevancy}
+                />
               ))}
             </div>
           </section>

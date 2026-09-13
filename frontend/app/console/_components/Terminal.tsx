@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Badge, ProvenanceChip } from "@/lib/ui";
+import { Badge, ProvenanceChip, CitedResponse } from "@/lib/ui";
 import { cn } from "@/lib/ui/cn";
 import type { ConsoleReplay } from "@/lib/data/types";
 
@@ -42,9 +42,9 @@ export function Terminal({ replays }: { replays: ConsoleReplay[] }) {
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogLine[]>([]);
   const [result, setResult] = useState<ConsoleReplay | null | "not_found">(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
-  async function execute(q: string) {
+  async function execute(q: string, opts: { scrollOnFinish?: boolean } = {}) {
     if (!q.trim() || running) return;
     setRunning(true);
     setLog([]);
@@ -52,12 +52,9 @@ export function Terminal({ replays }: { replays: ConsoleReplay[] }) {
     setTab("console");
 
     for (const stage of STAGES) {
-      // eslint-disable-next-line react-hooks/purity -- animation timing only, runs from a click/submit handler, never during render
       await sleep(180 + Math.random() * 220);
-      // eslint-disable-next-line react-hooks/purity -- same as above
       const ms = Math.round(90 + Math.random() * 640);
       setLog((prev) => [...prev, { stage, ms }]);
-      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }
 
     const match = replays.find(
@@ -66,19 +63,34 @@ export function Terminal({ replays }: { replays: ConsoleReplay[] }) {
     await sleep(250);
     setResult(match ?? "not_found");
     setRunning(false);
+    if (opts.scrollOnFinish) {
+      bodyRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   }
+
+  useEffect(() => {
+    if (!replays[0]) return;
+    // Kick off the opening replay once on mount so a real result is on
+    // screen before any interaction, rather than an empty terminal. Runs
+    // silently, no auto-scroll, so the page doesn't jump on first load.
+    const id = requestAnimationFrame(() => {
+      execute(replays[0].question);
+    });
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally mount-only
+  }, []);
 
   return (
     <div className="glass-panel overflow-hidden p-0">
       {/* Window chrome */}
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.06] px-4 py-3">
+        <div className="flex items-center gap-3">
           <div className="flex gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-rose)]/70" />
             <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-amber)]/70" />
             <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-emerald)]/70" />
           </div>
-          <div className="hidden gap-1 sm:flex">
+          <div className="flex gap-1">
             {(["console", "trace", "raw"] as const).map((t) => (
               <button
                 key={t}
@@ -111,7 +123,7 @@ export function Terminal({ replays }: { replays: ConsoleReplay[] }) {
       </div>
 
       {/* Body */}
-      <div ref={scrollRef} className="styled-scroll h-[340px] overflow-y-auto px-5 py-5 font-mono text-[13px]">
+      <div ref={bodyRef} className="min-h-[200px] px-5 py-5 font-mono text-[13px]">
         {tab === "console" && (
           <div className="flex flex-col gap-2">
             {log.length === 0 && !running && (
@@ -147,9 +159,7 @@ export function Terminal({ replays }: { replays: ConsoleReplay[] }) {
                   <ProvenanceChip kind="measured" />
                   <span className="text-[11px] text-[var(--color-text-dim)]">recorded execution</span>
                 </div>
-                <p className="font-sans text-[14px] leading-relaxed text-[var(--color-text)]">
-                  {result.response}
-                </p>
+                <CitedResponse text={result.response} className="font-sans text-[14px] leading-relaxed" />
                 <div className="mt-3 flex flex-wrap gap-4 border-t border-white/[0.06] pt-3 text-[11px] text-[var(--color-text-muted)]">
                   <span>Faithfulness <b className="text-[var(--color-emerald)]">{result.faithfulness.toFixed(3)}</b></span>
                   <span>Relevancy <b className="text-[var(--color-sky)]">{result.answer_relevancy.toFixed(3)}</b></span>
@@ -213,7 +223,7 @@ export function Terminal({ replays }: { replays: ConsoleReplay[] }) {
               key={r.question}
               onClick={() => {
                 setQuery(r.question);
-                execute(r.question);
+                execute(r.question, { scrollOnFinish: true });
               }}
               disabled={running}
               className="rounded-full border border-white/10 bg-white/[0.02] px-3 py-1 text-left text-[11px] text-[var(--color-text-muted)] transition-colors hover:border-[var(--color-indigo)]/40 hover:text-[var(--color-text)] disabled:opacity-40"
@@ -225,7 +235,7 @@ export function Terminal({ replays }: { replays: ConsoleReplay[] }) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            execute(query);
+            execute(query, { scrollOnFinish: true });
           }}
           className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 focus-within:border-[var(--color-indigo)]/50"
         >

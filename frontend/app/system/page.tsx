@@ -1,20 +1,51 @@
-import { getSystemData } from "@/lib/data/loaders";
-import { SectionHeader, Card, Badge, ProvenanceChip } from "@/lib/ui";
+import Link from "next/link";
+import { getSystemData, getEvaluationData, getCorpusData } from "@/lib/data/loaders";
+import { SectionHeader, Card, Badge, ProvenanceChip, Stat } from "@/lib/ui";
 import { PipelineGraph } from "./_components/PipelineGraph";
 
 const TIER_TONE = { GREEN: "emerald", YELLOW: "amber", RED: "rose" } as const;
 
 export default function SystemPage() {
   const data = getSystemData();
+  const evaluation = getEvaluationData();
+  const corpus = getCorpusData();
   const { pipeline, budget_tiers, model_router_table, cache_config, context_window } = data;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
       <SectionHeader
         eyebrow="System"
-        title="The reasoning pipeline, stage by stage."
-        description="Every query moves through seven governed stages: planning, retrieval, reranking, reasoning, and a reflective loop that can send the engine back for another pass before it ever emits an answer."
+        title="The mechanics behind every answer."
+        description="This is the architecture reference: seven governed stages, budget rules, and routing logic. For what it actually produces, see Console and Evaluation."
       />
+
+      <section className="mb-16">
+        <div className="mb-5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs uppercase tracking-wider text-[var(--color-text-dim)]">
+              What this architecture has produced
+            </span>
+            <ProvenanceChip kind="measured" />
+          </div>
+          <Link href="/evaluation" className="text-xs text-[var(--color-indigo)] hover:text-[var(--color-text)]">
+            Full evaluation &rarr;
+          </Link>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-4">
+          <Card>
+            <Stat label="Faithfulness, avg" value={evaluation.summary?.avg_faithfulness ?? 0} decimals={3} accent="emerald" />
+          </Card>
+          <Card>
+            <Stat label="Relevancy, avg" value={evaluation.summary?.avg_answer_relevancy ?? 0} decimals={3} accent="indigo" />
+          </Card>
+          <Card>
+            <Stat label="Filings indexed" value={corpus.filings.filing_count} />
+          </Card>
+          <Card>
+            <Stat label="Chunks indexed" value={corpus.filings.total_chunks} />
+          </Card>
+        </div>
+      </section>
 
       <section className="mb-16">
         <div className="mb-5 flex items-center gap-2">
