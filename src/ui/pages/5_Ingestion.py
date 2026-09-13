@@ -31,7 +31,7 @@ steps = [
         "tech": "sec-edgar-downloader",
         "config": [
             ("Tickers",    "Any valid US equity ticker"),
-            ("Form types", "10-K, 10-Q, 8-K (configurable list)"),
+            ("Form types", "10-K by default (any SEC form type, configurable)"),
             ("Limit",      "1 most recent filing per type"),
             ("User-Agent", "Company + email (SEC requirement)"),
         ],
@@ -39,30 +39,32 @@ steps = [
     {
         "step": "02", "name": "Document Processor", "color": ACCENT,
         "desc": (
-            "Parses raw HTML/TXT with <code>unstructured</code>. Chunks by section "
-            "titles to preserve semantic context. Large files are split into 800k-char "
-            "blocks first to respect spaCy's NLP memory limits."
+            "Parses raw filings via a pluggable <code>ParserRegistry</code> "
+            "(content-based SEC EDGAR detection, plus PDF/HTML/JSON/plain-text parsers). "
+            "<code>SemanticChunker</code> chunks section-aware when ≥3 sections are detected, "
+            "falling back to page-aware or flat paragraph/sentence splitting otherwise, then "
+            "filters noise (near-empty, HTML-remnant, or non-textual chunks)."
         ),
-        "tech": "unstructured.io",
+        "tech": "ParserRegistry + SemanticChunker",
         "config": [
-            ("Max chunk chars",   "2,000"),
+            ("Max chunk chars",   "1,500"),
             ("Overlap",           "200 characters"),
-            ("Min combine chars", "500 (merges small blocks)"),
+            ("Min chunk chars",   "80 (shorter chunks filtered as noise)"),
             ("Output format",     "JSONL per filing"),
         ],
     },
     {
         "step": "03", "name": "Index Builder", "color": GREEN,
         "desc": (
-            "Encodes all chunks with <code>all-MiniLM-L6-v2</code> in batches of 500 "
-            "(GPU-accelerated on RTX 4070). Upserts into Qdrant cosine collection. "
+            "Encodes all chunks with <code>all-MiniLM-L6-v2</code> in batches of 100 "
+            "(CUDA when available, else CPU). Upserts into Qdrant cosine collection. "
             "Simultaneously tokenises corpus for BM25Okapi."
         ),
         "tech": "Qdrant + BM25Okapi",
         "config": [
             ("Embedding model",  "all-MiniLM-L6-v2 (384-dim)"),
             ("Distance metric",  "Cosine similarity"),
-            ("Batch size",       "500 chunks per upsert"),
+            ("Batch size",       "100 chunks per embed call"),
             ("BM25 tokeniser",   "Whitespace split → lowercase"),
         ],
     },
@@ -70,15 +72,16 @@ steps = [
         "step": "04", "name": "Persistence", "color": PURPLE,
         "desc": (
             "Qdrant vectors persisted to disk at <code>data/qdrant_db/</code>. "
-            "BM25 index and full corpus metadata pickled together to "
-            "<code>data/bm25_index.pkl</code> for fast reload at query time."
+            "BM25 index and full corpus metadata pickled to "
+            "<code>data/bm25_{collection}.pkl</code>, plus a <code>data/bm25_index.pkl</code> "
+            "default alias for the <code>sec_filings</code> collection, for fast reload at query time."
         ),
         "tech": "Local disk storage",
         "config": [
             ("Dense store",   "data/qdrant_db/ (Qdrant local)"),
-            ("Sparse store",  "data/bm25_index.pkl"),
+            ("Sparse store",  "data/bm25_{collection}.pkl (+ bm25_index.pkl alias)"),
             ("Reload",        "load_bm25() on first search call"),
-            ("Collection",    "sec_filings (recreated on rebuild)"),
+            ("Collection",    "sec_filings (idempotent create; per-doc content-hash skip)"),
         ],
     },
 ]
@@ -143,7 +146,7 @@ with col_dense:
         ("Vector size",      "384 dimensions",            TEXT),
         ("Distance",         "Cosine similarity",         TEXT),
         ("Candidate fetch",  "fetch_k = 50 per query",    ACCENT),
-        ("Device",           "CUDA (RTX 4070 8GB VRAM)",  GREEN),
+        ("Device",           "CUDA when available, else CPU", GREEN),
         ("Storage",          "data/qdrant_db/ (local)",   TEXT_MUTED),
     ]
     for k, v, c in dense_items:
@@ -237,18 +240,37 @@ st.markdown(
 )
 st.code(
     """{
-  "page_content": "Net revenue increased 122% year-over-year to $44.1B driven primarily by...",
+  "page_content": "A discussion regarding our financial condition and results of operations for fiscal year 2025 compared to fiscal year 2024 can be found under Item 7 in our Annual Report on Form 10-K [...] The following table sets forth, for the periods indicated, certain items in our Consolidated Statements of Income expressed as a percentage of revenue.",
   "metadata": {
-    "source": "data/raw/sec-edgar-filings/NVDA/10-K/0001045810-24/primary-document.htm",
-    "element_type": "CompositeElement"
+    "source_path": "data/raw/sec-edgar-filings/NVDA/10-K/0001045810-26-000021/full-submission.txt",
+    "source_name": "full-submission.txt",
+    "chunk_index": 149,
+    "total_chunks": 284,
+    "section_header": "Item 7A. Quantitative and Qualitative Disclosures about Market Risk",
+    "content_type": "narrative",
+    "content_hash": "b8968ff560aa",
+    "char_count": 535,
+    "document_title": "NVIDIA CORP — 10-K",
+    "document_hash": "601f611c367e390b",
+    "source": "data/raw/sec-edgar-filings/NVDA/10-K/0001045810-26-000021/full-submission.txt"
   }
 }""",
     language="json",
 )
 st.markdown(
+    f"<div style='margin-top:6px;font-family:{MONO};font-size:10px;color:{TEXT_DIM};'>"
+    f"Real chunk #149/284 from the committed index (<code>page_content</code> truncated with [...] for display; "
+    f"every other field is verbatim). Full schema: <code>ChunkMetadata.to_dict()</code> in "
+    f"<code>src/ingestion/chunking.py</code> — also includes <code>section_path</code> and <code>page_number</code> "
+    f"when applicable, omitted here as they were empty/None for this chunk.</div>",
+    unsafe_allow_html=True,
+)
+st.markdown(
     f"<div style='margin-top:10px;font-family:{MONO};font-size:11px;color:{TEXT_DIM};'>"
-    f"One JSON object per line. Output path pattern: "
-    f"<code>data/processed/{{TICKER}}_{{FORM}}_{{ACCESSION}}_chunks.jsonl</code></div>",
+    f"One JSON object per line. Real output path: "
+    f"<code>data/processed/sec-edgar-filings_NVDA_10-K_0001045810-26-000021_full-submission_chunks.jsonl</code> "
+    f"(the source's relative path under <code>data/raw/</code>, with path separators replaced by underscores, "
+    f"plus a <code>_chunks.jsonl</code> suffix).</div>",
     unsafe_allow_html=True,
 )
 st.markdown("</div>", unsafe_allow_html=True)

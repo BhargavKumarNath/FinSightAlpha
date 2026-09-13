@@ -238,7 +238,7 @@ TECH_STACK = [
     ("Streamlit",            "UI Framework",         RED),
     ("RAGAS",                "Evaluation Suite",     GREEN),
     ("sentence-transformers","Embeddings",           PURPLE),
-    ("Unstructured",         "Doc Parsing",          TEXT_MUTED),
+    ("ParserRegistry",       "Doc Parsing",          TEXT_MUTED),
 ]
 
 # Architecture
