@@ -113,3 +113,52 @@ export interface CorpusData {
     items: { type: string; desc: string }[];
   };
 }
+
+// Client-side types for the live chat pipeline (app/api/chat). Kept
+// separate from lib/rag/types.ts, which is a server-only module tree.
+
+export type ChatStage = "plan" | "rewrite" | "retrieve" | "rerank" | "reason" | "reflect" | "respond";
+
+export type ChatStreamEvent =
+  | { type: "stage"; stage: ChatStage; detail: string; ms: number }
+  | {
+      type: "result";
+      question: string;
+      response: string;
+      retrieved_count: number;
+      cited_count: number;
+      plan: string;
+      sub_queries: string[];
+      loop_count: number;
+      reflection: string;
+      chunks: EvidenceChunk[];
+    }
+  | { type: "error"; message: string };
+
+export interface EvidenceChunk {
+  docId: number;
+  text: string;
+  source: string;
+  score: number;
+}
+
+export interface EvidenceStageLog {
+  stage: ChatStage;
+  detail: string;
+  ms: number;
+}
+
+export interface EvidenceRecord {
+  queryId: string;
+  question: string;
+  response: string;
+  plan: string;
+  subQueries: string[];
+  loopCount: number;
+  reflection: string;
+  retrievedCount: number;
+  citedCount: number;
+  chunks: EvidenceChunk[];
+  stages: EvidenceStageLog[];
+  createdAt: number;
+}
