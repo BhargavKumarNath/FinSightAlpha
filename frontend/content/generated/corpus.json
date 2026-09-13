@@ -1,0 +1,40 @@
+{
+  "filings": {
+    "provenance": "measured",
+    "filing_count": 1,
+    "total_chunks": 284,
+    "items": [
+      {
+        "doc_id": "f2b038a8c23b",
+        "title": "NVIDIA CORP",
+        "source_name": "full-submission.txt",
+        "content_hash": "601f611c367e390b",
+        "chunk_count": 284,
+        "indexed_at": 1777124013.4005296,
+        "collection": "sec_filings"
+      }
+    ]
+  },
+  "supported_filing_types": {
+    "provenance": "illustrative",
+    "note": "Parser coverage across filing types. Only the NVDA 10-K below is currently indexed.",
+    "items": [
+      {
+        "type": "10-K (Annual)",
+        "desc": "Full-year financials, risk factors, MD&A"
+      },
+      {
+        "type": "10-Q (Quarterly)",
+        "desc": "Quarterly earnings, balance sheet updates"
+      },
+      {
+        "type": "8-K (Current)",
+        "desc": "Material events, earnings surprises"
+      },
+      {
+        "type": "Transcripts",
+        "desc": "CEO/CFO earnings call verbatim text"
+      }
+    ]
+  }
+}

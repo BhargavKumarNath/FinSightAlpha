@@ -1,4 +1,5 @@
 import "server-only";
+import "./onnxEnv";
 import { pipeline, type FeatureExtractionPipeline } from "@huggingface/transformers";
 
 // Xenova/all-MiniLM-L6-v2 is the ONNX conversion of the same

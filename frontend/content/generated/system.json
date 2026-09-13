@@ -1,0 +1,230 @@
+{
+  "provenance": "measured",
+  "pipeline": {
+    "nodes": [
+      {
+        "id": "plan",
+        "label": "PLAN",
+        "desc": "Decomposes query into research objectives",
+        "model": "LLaMA 3.1 8B",
+        "prompt": "PLANNER_PROMPT",
+        "input": "Original query",
+        "output": "1-3 step research plan",
+        "note": "Skipped on YELLOW/RED tier"
+      },
+      {
+        "id": "rewrite",
+        "label": "REWRITE",
+        "desc": "Generates atomic sub-queries for vector DB",
+        "model": "LLaMA 3.1 8B",
+        "prompt": "REWRITER_PROMPT",
+        "input": "Plan + original query",
+        "output": "JSON {queries:[...]}",
+        "note": "Sequential dependency resolution"
+      },
+      {
+        "id": "retrieve",
+        "label": "RETRIEVE",
+        "desc": "Hybrid BM25 + Qdrant + RRF fusion",
+        "model": "HybridRetriever",
+        "prompt": "N/A",
+        "input": "Sub-queries list",
+        "output": "Candidate passage pool",
+        "note": "fetch_k=50, RRF k=60"
+      },
+      {
+        "id": "rerank",
+        "label": "RERANK",
+        "desc": "Cross-encoder ms-marco reranking",
+        "model": "CrossEncoder",
+        "prompt": "ms-marco-MiniLM-L-6-v2",
+        "input": "Query-passage pairs",
+        "output": "Reranked top-N passages",
+        "note": "GPU-accelerated when available (falls back to CPU)"
+      },
+      {
+        "id": "reason",
+        "label": "REASON",
+        "desc": "Citation-grounded synthesis via 70B LLM",
+        "model": "LLaMA 3.3 70B",
+        "prompt": "REASONER_PROMPT",
+        "input": "Query + context chunks",
+        "output": "Cited draft [Doc N]",
+        "note": "Every claim must cite a doc"
+      },
+      {
+        "id": "reflect",
+        "label": "REFLECT",
+        "desc": "Hallucination check + conditional loop-back",
+        "model": "LLaMA 3.1 8B",
+        "prompt": "REFLECTOR_PROMPT",
+        "input": "Draft + context",
+        "output": "JSON {is_grounded, needs_more_info}",
+        "note": "Routes to: Responder | Rewriter | Reasoner"
+      }
+    ],
+    "routing_rules": [
+      {
+        "from": "reflector",
+        "condition": "is_grounded=True OR loops\u2265max",
+        "to": "responder"
+      },
+      {
+        "from": "reflector",
+        "condition": "needs_more_info=True",
+        "to": "query_rewriter"
+      },
+      {
+        "from": "reflector",
+        "condition": "is_grounded=False",
+        "to": "reasoner"
+      },
+      {
+        "from": "responder",
+        "condition": "error in state",
+        "to": "graceful_degradation"
+      }
+    ]
+  },
+  "budget_tiers": [
+    {
+      "tier": "GREEN",
+      "range": "0 \u2013 60k",
+      "loops": 6,
+      "top_n": 8,
+      "model": "llama-3.3-70b-versatile",
+      "desc": "Full pipeline. All nodes active.",
+      "skips": []
+    },
+    {
+      "tier": "YELLOW",
+      "range": "60k \u2013 85k",
+      "loops": 3,
+      "top_n": 5,
+      "model": "llama-3.3-70b-versatile",
+      "desc": "Planner skipped. Reduced loops and retrieval.",
+      "skips": [
+        "Planner"
+      ]
+    },
+    {
+      "tier": "RED",
+      "range": "85k+",
+      "loops": 2,
+      "top_n": 4,
+      "model": "llama-3.1-8b-instant",
+      "desc": "Minimum viable path. Budget preservation mode.",
+      "skips": [
+        "Planner",
+        "Heavy Model"
+      ]
+    }
+  ],
+  "model_router_table": [
+    {
+      "task": "Planner",
+      "tier": "ALL",
+      "model": "llama-3.1-8b-instant",
+      "reason": "Simple structured task",
+      "approx_cost": "~800 tokens"
+    },
+    {
+      "task": "Query Rewriter",
+      "tier": "ALL",
+      "model": "llama-3.1-8b-instant",
+      "reason": "JSON structured output",
+      "approx_cost": "~1,200 tokens"
+    },
+    {
+      "task": "Reasoner (GREEN)",
+      "tier": "GREEN/YELLOW",
+      "model": "llama-3.3-70b-versatile",
+      "reason": "Complex synthesis + citations",
+      "approx_cost": "~3,500 tokens"
+    },
+    {
+      "task": "Reasoner (RED)",
+      "tier": "RED",
+      "model": "llama-3.1-8b-instant",
+      "reason": "Budget-constrained synthesis",
+      "approx_cost": "~2,000 tokens"
+    },
+    {
+      "task": "Reflector",
+      "tier": "ALL",
+      "model": "llama-3.1-8b-instant",
+      "reason": "JSON hallucination check",
+      "approx_cost": "~1,000 tokens"
+    },
+    {
+      "task": "Responder (fallback)",
+      "tier": "ERROR",
+      "model": "llama-3.3-70b-versatile",
+      "reason": "Graceful degradation",
+      "approx_cost": "~2,500 tokens"
+    }
+  ],
+  "model_router_caveat": "Reflects src/optimization/config.py's configured model IDs as of the last precompute run. Groq has since retired the Llama 3.x IDs shown here (confirmed against the live /v1/models endpoint, see deployment_roadmap.md \u00a79 Phase 2) -- the live serverless chat route now calls openai/gpt-oss-120b and openai/gpt-oss-20b instead; this table has not been repointed at those.",
+  "cache_config": [
+    {
+      "label": "Similarity Threshold",
+      "value": "0.92 cosine sim"
+    },
+    {
+      "label": "Max Cache Size",
+      "value": "500 entries (LRU)"
+    },
+    {
+      "label": "TTL",
+      "value": "3,600 seconds (1hr)"
+    },
+    {
+      "label": "Embedding Model",
+      "value": "all-MiniLM-L6-v2"
+    },
+    {
+      "label": "Thread Safety",
+      "value": "RLock protected"
+    },
+    {
+      "label": "Eviction Policy",
+      "value": "Least-recently-used"
+    },
+    {
+      "label": "Shared Model",
+      "value": "Yes: avoids reload across components"
+    }
+  ],
+  "context_window": [
+    {
+      "label": "Top-K Chunks",
+      "value": "8",
+      "desc": "Maximum chunks injected per query"
+    },
+    {
+      "label": "Max Chunk Chars",
+      "value": "1500",
+      "desc": "Individual chunk character hard cap"
+    },
+    {
+      "label": "Max Total Tokens",
+      "value": "6,000",
+      "desc": "Total context budget across all chunks"
+    },
+    {
+      "label": "Relevance Floor",
+      "value": "0.15",
+      "desc": "Minimum cosine sim to include a chunk"
+    },
+    {
+      "label": "Truncation Method",
+      "value": "Sentence boundary",
+      "desc": "Splits at '.', '!', '?' before hard cut"
+    },
+    {
+      "label": "Token Estimate",
+      "value": "4 chars \u2248 1 token",
+      "desc": "Fast approximation (configurable)"
+    }
+  ]
+}

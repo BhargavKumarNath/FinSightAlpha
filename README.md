@@ -1,6 +1,6 @@
 ![LangChain](https://img.shields.io/badge/AI--Framework-LangChain-1C3C3C?style=flat-square&logo=langchain)
 ![LangGraph](https://img.shields.io/badge/Agents-LangGraph-orange?style=flat-square)
-![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
+![Next.js](https://img.shields.io/badge/Frontend-Next.js-000000?style=flat-square&logo=nextdotjs&logoColor=white)
 ![RAG Architecture](https://img.shields.io/badge/Architecture-RAG-blueviolet)
 ![Financial Analysis](https://img.shields.io/badge/Focus-Financial_Insights-gold)
 ![GitHub top language](https://img.shields.io/github/languages/top/bhargavkumarnath/finsightalpha)
@@ -8,7 +8,9 @@
 
 
 ## 🚀 Live Demo
-[![Streamlit App](https://img.shields.io/badge/Streamlit-Live%20App-FF4B4B?logo=streamlit)](https://finsightalpha.streamlit.app/)
+[![Live on Vercel](https://img.shields.io/badge/Live-Vercel-000000?logo=vercel&logoColor=white)](https://frontend-two-delta-69.vercel.app/)
+
+The Streamlit UI has been retired (see `deployment_roadmap.md`) in favor of a Next.js frontend deployed at **https://frontend-two-delta-69.vercel.app/**. Source lives under `frontend/`; see §9.2 below to run it locally.
 
 # FinSight-Alpha: Comprehensive System Architecture & Design Analysis
 
@@ -66,7 +68,8 @@ The system's defining characteristic is that it does **not** simply embed a quer
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      SERVING LAYER                              │
-│   Streamlit UI (app.py / pages/)  ←→  FastAPI Server (main.py)  │
+│   Next.js frontend (frontend/) -- self-contained /api/chat      │
+│   FastAPI Server (main.py) -- standalone, same agent logic      │
 └───────────────────────────┬─────────────────────────────────────┘
                             │ POST /chat
                             ▼
@@ -918,9 +921,6 @@ asyncio.run(pipeline._embed_and_index(chunks, collection="live_fundamentals"))
    # Backend API & RAG Stack
    pip install -r requirements-backend.txt
 
-   # Streamlit UI & Dashboards
-   pip install -r requirements.txt
-
    # Development & Testing (pytest)
    pip install pytest
    ```
@@ -947,14 +947,17 @@ asyncio.run(pipeline._embed_and_index(chunks, collection="live_fundamentals"))
    - Cache telemetry: `GET http://localhost:8000/cache/stats`
    - Interactive Swagger API docs: `http://localhost:8000/docs`
 
-2. **Start the Streamlit Multi-Page Dashboard**:
+2. **Start the Next.js frontend** (dashboards + live console, `frontend/`):
    ```bash
-   streamlit run src/ui/Home.py
+   cd frontend
+   npm install
+   uv run scripts/precompute.py  # from repo root, first time only: builds frontend/content/generated/*.json
+   npm run dev
    ```
-   Or launch the direct Operational Console:
-   ```bash
-   streamlit run src/ui/app.py
-   ```
+   Serves the dashboards at `http://localhost:3000` plus the serverless
+   `/api/chat` route -- a self-contained TypeScript port of the same
+   plan/retrieve/reason/reflect agent (`src/agents/langgraph_agent.py`),
+   not a proxy to the FastAPI service above. See `deployment_roadmap.md`.
 
 ---
 
@@ -976,12 +979,13 @@ All integration suites test:
 
 ### 9.4 Recent Updates & Stability Fixes
 
+- **Streamlit UI retired**: the six-page Streamlit dashboard (`src/ui/`) and its `requirements.txt` have been removed in favor of a Next.js frontend under `frontend/` (see `deployment_roadmap.md`). The dashboard data-sourcing logic (`src/ui/components/data.py`) moved to `src/reporting/dashboard_data.py`, which has no UI dependency and now feeds `scripts/precompute.py` instead.
 - **Data integrity reconciliation**: `data/processed/*.jsonl` had drifted from what was actually indexed in Qdrant and BM25 (288 vs. 284 chunks). Reconciled so the processed file matches the live index exactly.
 - **Test coverage added**: `tests/test_ingestion.py` and `tests/test_retrieval.py` cover parser and chunker correctness against the real committed filing, plus a registry/Qdrant/BM25 consistency check, alongside the existing `tests/test_optimization.py` suite.
 - **CI pipeline added**: `.github/workflows/ci.yml` runs lint checks, unit tests, and the data consistency check on every push, plus an end-to-end retrieval test on `main`.
 - **Dashboard now backed by real evaluation results**: `src/ui/components/data.py` loads RAGAS scores from `data/reports/ragas_evaluation_report.csv` instead of hardcoded placeholder numbers. Chart sections with no real underlying data (a multi-run trend, a six-metric quality radar, and a retrieval-method comparison that was never actually run) were removed rather than filled with invented numbers.
 - **Ingestion page corrected**: `src/ui/pages/5_Ingestion.py` now describes the actual parsing and chunking stack (`ParserRegistry` and `SemanticChunker`) and real configuration values, replacing an earlier description of tooling this codebase never used.
-- **Dependency Alignment**: Fully updated and decoupled [requirements-backend.txt](requirements-backend.txt) (`fastapi`, `uvicorn`, `langchain-groq`, `rank_bm25`, `tqdm`) and [requirements.txt](requirements.txt) (`streamlit==1.36.0`).
+- **Dependency Alignment**: Fully updated and decoupled [requirements-backend.txt](requirements-backend.txt) (`fastapi`, `uvicorn`, `langchain-groq`, `rank_bm25`, `tqdm`) and the now-removed `requirements.txt` (`streamlit==1.36.0`).
 - **Python 3.13 Compatibility**: Modernized dependencies for cross-platform wheels and removed incompatible legacy packages.
 - **Pytest Suite Refactoring**: Structured `tests/test_optimization.py` into standard pytest test functions with synchronized token budget tier assertions.
 - **Cleaned Repository**: Removed deprecated temporary patch and test scripts.

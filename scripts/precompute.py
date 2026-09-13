@@ -9,7 +9,7 @@ report, and the live optimization config, and writes typed JSON
 artifacts to frontend/content/generated/. No metric here is invented:
 every artifact carries a `provenance` field, and anything explicitly
 mocked upstream (LATENCY_BREAKDOWN, CACHE_TOKEN_SAVINGS in
-src/ui/components/data.py) is intentionally left out rather than
+src/reporting/dashboard_data.py) is intentionally left out rather than
 passed through. See deployment_roadmap.md §7.
 
 Run with: uv run scripts/precompute.py
@@ -29,11 +29,11 @@ _CITATION_RE = re.compile(r"\[Doc\s*(\d+):")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(REPO_ROOT / "src" / "ui"))
 
-# Dependency-free real sources (no torch/streamlit import chain, see
-# src/ui/components/data.py's own module docstring for the same guarantee).
-from components.data import (
+# Dependency-free real sources (no torch import chain, see
+# src/reporting/dashboard_data.py's own module docstring for the same
+# guarantee; the Streamlit UI this used to feed has been retired).
+from src.reporting.dashboard_data import (
     BUDGET_TIERS,
     CACHE_CONFIG_ROWS,
     CONTEXT_WINDOW_DETAILS,

@@ -1,0 +1,15 @@
+# Controls what `vercel` CLI uploads for a local-directory deploy. Deliberately
+# NOT the same list as .gitignore: content/generated/ is a regenerated build
+# artifact we don't want in git history, but Vercel's build machine has no
+# Python/uv to run scripts/precompute.py itself, so it must still be uploaded
+# here (see deployment_roadmap.md §9, Phase 5).
+node_modules
+.next
+out
+test-results
+playwright-report
+e2e/.cache
+coverage
+*.tsbuildinfo
+.env*
+.git

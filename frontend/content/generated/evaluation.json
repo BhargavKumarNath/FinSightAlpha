@@ -1,0 +1,27 @@
+{
+  "provenance": "measured",
+  "available": true,
+  "rows": [
+    {
+      "question": "What are NVIDIA's primary strategies for mitigating supply chain constraints?",
+      "faithfulness": 0.8571,
+      "answer_relevancy": 0.0
+    },
+    {
+      "question": "If NVIDIA's reported data center revenue drops by 10% from $47 billion, what is the new figure?",
+      "faithfulness": 0.0,
+      "answer_relevancy": 0.9437
+    },
+    {
+      "question": "What does the 10-K say about NVIDIA's secret plans to acquire AMD?",
+      "faithfulness": 0.9412,
+      "answer_relevancy": 0.0
+    }
+  ],
+  "summary": {
+    "num_queries": 3,
+    "avg_faithfulness": 0.5994,
+    "avg_answer_relevancy": 0.3146
+  },
+  "caveat": "3-query pilot evaluation. Groq's API does not support n>1, so each metric reflects a single sampled generation per query rather than an averaged multi-sample estimate. Read these as directional, not statistically robust."
+}

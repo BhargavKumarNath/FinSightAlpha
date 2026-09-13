@@ -1,4 +1,5 @@
 import "server-only";
+import "./onnxEnv";
 import {
   AutoModelForSequenceClassification,
   AutoTokenizer,
