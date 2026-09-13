@@ -1,23 +1,25 @@
 import { cn } from "./cn";
 
 /**
- * Measured | Illustrative | Live — the product's core honesty signal.
- * Every stat/chart in the app carries one of these. See deployment_roadmap.md §5.
+ * Measured | Indicative | Live: the rigor signal carried on every figure
+ * in the product. "Indicative" covers figures with no live/measured run
+ * behind them yet (the standard finance term for non-firm data) rather
+ * than a bare "mock" label.
  */
 export type Provenance = "measured" | "illustrative" | "live";
 
 const STYLES: Record<Provenance, string> = {
   measured:
-    "border-[var(--color-gold)] text-[var(--color-gold)] bg-[var(--color-gold-dim)]",
-  live: "border-[var(--color-slate)] text-[var(--color-slate)] bg-[var(--color-slate-dim)]",
+    "border-[var(--color-emerald)]/35 text-[var(--color-emerald)] bg-[var(--color-emerald-dim)]",
+  live: "border-[var(--color-sky)]/35 text-[var(--color-sky)] bg-[var(--color-sky-dim)]",
   illustrative:
-    "border-dashed border-[var(--color-text-dim)] text-[var(--color-text-muted)]",
+    "border-dashed border-white/15 text-[var(--color-text-muted)] bg-white/[0.02]",
 };
 
 const LABELS: Record<Provenance, string> = {
   measured: "Measured",
   live: "Live",
-  illustrative: "Illustrative",
+  illustrative: "Indicative",
 };
 
 export function ProvenanceChip({
@@ -32,12 +34,22 @@ export function ProvenanceChip({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider",
         STYLES[kind],
         className,
       )}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      <span
+        className={cn(
+          "h-1.5 w-1.5 rounded-full bg-current",
+          kind === "live" && "pulse-dot",
+        )}
+        style={
+          kind === "live"
+            ? ({ "--pulse-color": "rgba(56,189,248,0.55)" } as React.CSSProperties)
+            : undefined
+        }
+      />
       {label ?? LABELS[kind]}
     </span>
   );

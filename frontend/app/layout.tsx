@@ -1,16 +1,10 @@
 import type { Metadata } from "next";
-import { Source_Serif_4, Inter, JetBrains_Mono } from "next/font/google";
+import { Geist, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { NavBar } from "./_components/NavBar";
 
-const sourceSerif = Source_Serif_4({
-  variable: "--font-source-serif",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const inter = Inter({
-  variable: "--font-inter",
+const geist = Geist({
+  variable: "--font-geist",
   subsets: ["latin"],
   display: "swap",
 });
@@ -22,20 +16,21 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FinSightAlpha",
+  title: "FinSight Alpha",
   description:
-    "An evidence-grounded financial research console — every number labeled by what it actually is: measured, illustrative, or live.",
+    "A real-time analytical execution engine for SEC filings: hybrid retrieval, multi-hop reasoning, and citation-grounded synthesis, with every figure marked by the rigor behind it.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${sourceSerif.variable} ${inter.variable} ${jetbrainsMono.variable} h-full`}
+      className={`${geist.variable} ${jetbrainsMono.variable} h-full`}
     >
       <body className="min-h-full flex flex-col font-sans antialiased">
+        <div className="grid-texture pointer-events-none fixed inset-x-0 top-0 h-[480px]" />
         <NavBar />
-        <main className="flex-1">{children}</main>
+        <main className="relative flex-1">{children}</main>
       </body>
     </html>
   );

@@ -86,6 +86,20 @@ export interface FilingItem {
   collection: string;
 }
 
+export interface ConsoleReplay {
+  question: string;
+  response: string;
+  faithfulness: number;
+  answer_relevancy: number;
+  retrieved_count: number;
+  cited_count: number;
+}
+
+export interface ConsoleData {
+  provenance: Provenance;
+  items: ConsoleReplay[];
+}
+
 export interface CorpusData {
   filings: {
     provenance: Provenance;

@@ -1,7 +1,7 @@
 import "server-only";
 import fs from "node:fs";
 import path from "node:path";
-import type { SystemData, EvaluationData, CorpusData } from "./types";
+import type { SystemData, EvaluationData, CorpusData, ConsoleData } from "./types";
 
 const CONTENT_DIR = path.join(process.cwd(), "content", "generated");
 
@@ -13,7 +13,7 @@ function readJson<T>(filename: string): T {
 
 /**
  * Reads build-time JSON artifacts produced by `uv run scripts/precompute.py`.
- * Server-only, synchronous, no runtime fetch — see deployment_roadmap.md §7.
+ * Server-only, synchronous, no runtime fetch. See deployment_roadmap.md §7.
  */
 export function getSystemData(): SystemData {
   return readJson<SystemData>("system.json");
@@ -25,4 +25,8 @@ export function getEvaluationData(): EvaluationData {
 
 export function getCorpusData(): CorpusData {
   return readJson<CorpusData>("corpus.json");
+}
+
+export function getConsoleData(): ConsoleData {
+  return readJson<ConsoleData>("console.json");
 }

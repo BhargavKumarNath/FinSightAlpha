@@ -1,11 +1,15 @@
 import { cn } from "./cn";
 
 const TONES = {
-  neutral: "border-[var(--color-border-strong)] text-[var(--color-text-muted)]",
-  gold: "border-[var(--color-gold)] text-[var(--color-gold)] bg-[var(--color-gold-dim)]",
-  slate: "border-[var(--color-slate)] text-[var(--color-slate)] bg-[var(--color-slate-dim)]",
-  caveat:
-    "border-[var(--color-caveat)] text-[var(--color-caveat)] bg-[var(--color-caveat-dim)]",
+  neutral: "border-white/10 text-[var(--color-text-muted)] bg-white/[0.03]",
+  emerald:
+    "border-[var(--color-emerald)]/30 text-[var(--color-emerald)] bg-[var(--color-emerald-dim)]",
+  indigo:
+    "border-[var(--color-indigo)]/30 text-[var(--color-indigo)] bg-[var(--color-indigo-dim)]",
+  amber:
+    "border-[var(--color-amber)]/30 text-[var(--color-amber)] bg-[var(--color-amber-dim)]",
+  rose: "border-[var(--color-rose)]/30 text-[var(--color-rose)] bg-[var(--color-rose-dim)]",
+  sky: "border-[var(--color-sky)]/30 text-[var(--color-sky)] bg-[var(--color-sky-dim)]",
 } as const;
 
 export function Badge({
@@ -20,7 +24,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded border px-2 py-0.5 font-mono text-xs",
+        "inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-[11px] tracking-wide",
         TONES[tone],
         className,
       )}

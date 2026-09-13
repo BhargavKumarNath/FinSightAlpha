@@ -4,3 +4,6 @@ export { Stat } from "./Stat";
 export { Badge } from "./Badge";
 export { SectionHeader } from "./SectionHeader";
 export { ProvenanceChip, type Provenance } from "./ProvenanceChip";
+export { AnimatedNumber } from "./AnimatedNumber";
+export { RadialProgress } from "./RadialProgress";
+export { Sparkline } from "./Sparkline";

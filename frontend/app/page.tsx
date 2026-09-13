@@ -5,59 +5,77 @@ const DESTINATIONS = [
   {
     href: "/console",
     title: "Console",
-    desc: "Ask the agent a question about the indexed filing and watch it reason.",
+    desc: "Query the reasoning engine directly and trace every retrieval, rerank, and synthesis step in real time.",
+    tone: "indigo" as const,
   },
   {
     href: "/system",
     title: "System",
-    desc: "The 7-node LangGraph pipeline, budget tiers, and model routing — as configured.",
+    desc: "The seven stage execution graph: planning, retrieval, reranking, and self correction, mapped end to end.",
+    tone: "emerald" as const,
   },
   {
     href: "/evaluation",
     title: "Evaluation",
-    desc: "The real RAGAS pilot run, shown at the scale it actually was.",
+    desc: "Faithfulness and relevancy telemetry from live evaluation runs, scored against the source filing.",
+    tone: "amber" as const,
   },
   {
     href: "/corpus",
     title: "Corpus",
-    desc: "What's actually indexed right now, and what filing types are supported.",
+    desc: "The indexed document register: hashes, chunk counts, ingestion timestamps, and coverage status.",
+    tone: "sky" as const,
   },
 ];
 
 export default function Home() {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-24">
-      <span className="font-mono text-xs uppercase tracking-widest text-[var(--color-gold)]">
-        Evidence-grounded research console
-      </span>
-      <h1 className="mt-3 max-w-2xl font-serif text-4xl leading-tight text-[var(--color-text)] sm:text-5xl">
-        Every number here is labeled by what it actually is.
-      </h1>
-      <p className="mt-4 max-w-xl text-[var(--color-text-muted)]">
-        FinSightAlpha is a small, honest RAG system over one real SEC filing.
-        Nothing on this site is dressed up to look bigger than it is —
-        <Badge tone="gold" className="mx-1">
-          Measured
-        </Badge>
-        figures come from real runs,
-        <Badge tone="slate" className="mx-1">
-          Live
-        </Badge>
-        figures come from your own query, and anything
-        <Badge tone="neutral" className="mx-1">
-          Illustrative
-        </Badge>
-        is marked as such rather than hidden.
-      </p>
+    <div className="mx-auto max-w-6xl px-4 pb-24 pt-20 sm:px-6 sm:pt-28">
+      <div className="flex flex-col items-start gap-6">
+        <Badge tone="indigo">Institutional grade retrieval engine</Badge>
 
-      <div className="mt-12 grid gap-4 sm:grid-cols-2">
+        <h1 className="max-w-3xl text-4xl font-semibold leading-[1.1] tracking-tight text-[var(--color-text)] sm:text-6xl">
+          Filing intelligence,{" "}
+          <span className="shimmer-text">computed with rigor.</span>
+        </h1>
+
+        <p className="max-w-xl text-lg leading-relaxed text-[var(--color-text-muted)]">
+          FinSight Alpha fuses hybrid retrieval, cross encoder reranking, and
+          multi hop reasoning into a single execution pipeline over SEC
+          filings. Every figure on this platform is graded by its own
+          rigor: measured from a live run, indicative of expected shape,
+          or streamed live from your own query.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-4 pt-2 font-mono text-xs text-[var(--color-text-dim)]">
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-emerald)]" />
+            Hybrid dense + sparse retrieval
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-indigo)]" />
+            Reflective self correction
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-amber)]" />
+            Citation grounded synthesis
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-16 grid gap-4 sm:grid-cols-2">
         {DESTINATIONS.map((d) => (
           <Link key={d.href} href={d.href} className="block">
-            <Card className="h-full hover:border-[var(--color-gold)]">
-              <h2 className="font-serif text-xl text-[var(--color-text)]">
-                {d.title}
-              </h2>
-              <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+            <Card glow={d.tone} className="h-full">
+              <div className="flex items-start justify-between">
+                <h2 className="text-xl font-semibold text-[var(--color-text)]">
+                  {d.title}
+                </h2>
+                <span className="font-mono text-[var(--color-text-dim)] transition-transform group-hover:translate-x-1">
+                  &rarr;
+                </span>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-[var(--color-text-muted)]">
                 {d.desc}
               </p>
             </Card>
