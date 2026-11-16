@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"Apple\u2019s 10-K filing lists its filing status as \u201cFILER.\u201d\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 1652, "completion_tokens": 48, "latency_s": 0.7283704280853271}

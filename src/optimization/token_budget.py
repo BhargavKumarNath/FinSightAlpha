@@ -49,6 +49,8 @@ class TokenBudgetManager:
         self._call_count = 0
         self._session_start = time.time()
         self._lock = threading.Lock()
+        # Evaluation hook: pin the tier regardless of usage (None = normal behaviour).
+        self.forced_tier: "BudgetTier | None" = None
 
         # Per-call log for debugging
         self._call_log = []
@@ -67,6 +69,8 @@ class TokenBudgetManager:
 
     def get_tier(self) -> BudgetTier:
         """Return the current budget tier based on cumulative usage."""
+        if self.forced_tier is not None:
+            return self.forced_tier
         used = self.total_tokens
         if used >= self.red_threshold:
             return BudgetTier.RED
@@ -154,6 +158,10 @@ class TokenBudgetManager:
             "session_seconds": round(time.time() - self._session_start, 1),
             "call_log": self._call_log[-10:],  # Last 10 calls
         }
+
+    def all_calls(self) -> list:
+        """Full call log for the current session (stats() only keeps the last 10)."""
+        return list(self._call_log)
 
     def reset(self) -> None:
         """Reset budget for a new session."""

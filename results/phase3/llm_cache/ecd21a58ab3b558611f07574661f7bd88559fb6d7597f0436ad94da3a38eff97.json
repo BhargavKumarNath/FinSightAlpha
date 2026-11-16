@@ -1,0 +1,1 @@
+{"content": "{\n  \"declined\": true,\n  \"reason\": \"The candidate explicitly states that the specific net sales figure for the United Kingdom is not disclosed in the available documents.\"\n}", "prompt_tokens": 313, "completion_tokens": 40, "latency_s": 0.32982659339904785}

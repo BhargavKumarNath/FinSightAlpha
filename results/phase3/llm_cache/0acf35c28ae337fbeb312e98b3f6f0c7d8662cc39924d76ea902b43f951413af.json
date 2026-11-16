@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"According to Apple's Award Agreement, which section of the Plan governs the amendment of the Agreement?\",\n  \"answer\": \"Section 15\",\n  \"quote\": \"The Plan and this Award Agreement may be amended pursuant to Section 15 of the Plan.\"\n}", "prompt_tokens": 373, "completion_tokens": 71, "latency_s": 0.4181342124938965}

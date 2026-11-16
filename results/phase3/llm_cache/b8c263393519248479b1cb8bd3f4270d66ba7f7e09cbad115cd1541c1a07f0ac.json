@@ -1,0 +1,1 @@
+{"content": "{\"correct\": true, \"reason\": \"The candidate correctly identifies that both companies use Ernst & Young LLP, matching the gold answer.\"}", "prompt_tokens": 396, "completion_tokens": 29, "latency_s": 0.30698537826538086}

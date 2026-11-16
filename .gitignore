@@ -7,6 +7,12 @@ __pycache__/
 htmlcov/
 *.pyc
 data/qdrant_db/.lock
+
+# Large generated / re-downloadable data
+data/raw*/
+data/qdrant_db*/
+data/p3/*.pkl
+data/*.pkl
 CLAUDE.md
 deployment_suggestion.md
 refactor.md

@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"NVIDIA\u2019s gross margin for fiscal year 2026 was 71.1%\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 1666, "completion_tokens": 51, "latency_s": 1.128577470779419}

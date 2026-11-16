@@ -134,7 +134,7 @@ if cached is not None:
 
 #### Step 1: Planner Node (`langgraph_agent.py::planner_node`)
 
-A fast **llama-3.1-8b-instant** model (via Groq) receives the raw user query and the `PLANNER_PROMPT` (Senior Financial Strategist persona). It outputs a 1–3 step research plan in plain English. This node is **skipped entirely** under YELLOW and RED budget tiers to save ~800 tokens.
+A fast **gpt-oss-20b** model (via Groq) receives the raw user query and the `PLANNER_PROMPT` (Senior Financial Strategist persona). It outputs a 1–3 step research plan in plain English. This node is **skipped entirely** under YELLOW and RED budget tiers to save ~800 tokens.
 
 ```
 Budget tier GREEN  → planner runs, produces: "1. Find supply chain risks. 2. Identify fiscal year."
@@ -179,7 +179,7 @@ Results from all sub queries are **deduplicated** by text (exact match), sorted 
 
 #### Step 4: Reasoner Node (`reasoner_node`)
 
-The **llama-3.3-70b-versatile** model (swapped to 8B under RED tier) receives:
+The **gpt-oss-120b** model (swapped to the 20b model under RED tier) receives:
 - The original user query
 - All retrieved chunks formatted as `[Doc X: filename] (Relevance: Y.YY)\n{text}`
 
@@ -527,10 +527,10 @@ The `ModelRouter` lazily initialises two Groq ChatGroq instances and routes task
 
 | Task | GREEN/YELLOW | RED |
 |---|---|---|
-| Planner, QueryRewriter, Reflector | `llama-3.1-8b-instant` | `llama-3.1-8b-instant` |
-| Reasoner, Responder (fallback) | `llama-3.3-70b-versatile` | `llama-3.1-8b-instant` |
+| Planner, QueryRewriter, Reflector | `openai/gpt-oss-20b` | `openai/gpt-oss-20b` |
+| Reasoner, Responder (fallback) | `openai/gpt-oss-120b` | `openai/gpt-oss-20b` |
 
-Lazy initialization means the heavy 70B model is **only instantiated if actually needed**, preventing unnecessary API connections at startup. Models are singletons within the router, reused across all agent invocations.
+Lazy initialization means the heavy 120b model is **only instantiated if actually needed**, preventing unnecessary API connections at startup. Models are singletons within the router, reused across all agent invocations.
 
 ---
 
@@ -546,6 +546,8 @@ Rather than injecting all retrieved chunks at full length (a common naive RAG mi
 6. Enforces a hard `max_total_tokens=6000` cap: stops adding chunks if the budget would be exceeded, attempting to fit a partial chunk if >100 chars remain
 
 This eliminates low-signal padding from the context window, reducing noise injected into the reasoner.
+
+**Status (Phase 3):** the module is now wired into the agent's retriever node behind `FINSIGHT_OPT_USE_CONTEXT_WINDOW` (default off). Measured on the 47 answerable held-out questions with the default settings, it cut median context by 2.1% and dropped no chunk (`results/phase3/window_offline_summary.json`), so on a single query's top-8 it is close to a no-op. Whether it helps on multi-sub-query contexts is decided by a rule fixed in `docs/phase3_protocol.md` once the agent runs finish; if it does not pass, the module will be deleted.
 
 ---
 
@@ -582,7 +584,11 @@ CPU-bound operations (parsing, embedding) are offloaded to a `ThreadPoolExecutor
 
 ---
 
-### 5.7 RAGAS Evaluation Framework (`src/evaluation/ragas_evaluator.py`)
+### 5.7 Evaluation: Phase 3 benchmark, and the legacy RAGAS script
+
+**Current evaluation** (`src/benchmark/`, `experiments/phase3/`, results in `results/phase3/`): 81 questions over five 10-Ks, each with verbatim gold evidence; retrieval compared at equal k across dense, BM25, hybrid and hybrid + rerank; a fixed reader and frozen graders; bootstrap intervals; a pre-registered protocol (`docs/phase3_protocol.md`). Headline: hybrid + rerank finds every gold passage in the top 8 for 86% of single-hop questions and 25% of two-passage questions; the reader answers 86% of single-hop and 38% of same-filing two-passage questions correctly and declines 18 of 18 unanswerable ones. See `results/phase3/SUMMARY.md`.
+
+**Legacy script** below. `ragas` 0.3.1 no longer imports with the pinned `langchain-community`, so `ragas_evaluator.py` does not run in this environment; its 3-question report is superseded by the benchmark above.
 
 An automated quality gate using two RAGAS metrics:
 
@@ -889,8 +895,9 @@ asyncio.run(pipeline._embed_and_index(chunks, collection="live_fundamentals"))
 
 | Gap | Impact |
 |---|---|
-| **RAGAS test suite is 3 questions** | The hardcoded test suite (`ragas_evaluator.py` `__main__`) is too small to be statistically meaningful. |
-| **No ground truth dataset** | Faithfulness and relevancy metrics require a curated QA dataset with reference answers for true precision/recall measurement. |
+| **Benchmark is small** | 81 questions (65 held-out); intervals on the two-passage groups (n=8 and n=4) are very wide. Questions were drafted by one model and filtered by hand. |
+| **Multi-hop retrieval is weak** | All four retrieval configurations find both passages for only 25% of two-passage questions in the top 8 on a single-shot query. Agent-level multi-query retrieval is not yet measured. |
+| **Free-tier quota** | Groq's free tier (200K tokens per model per day) stopped the reader ablation and agent tier runs; see `results/phase3/SUMMARY.md` §5 for what is and is not measured. |
 | **No regression testing** | There is no CI/CD pipeline that runs the evaluation suite on code changes. |
 
 ---
@@ -991,7 +998,7 @@ All integration suites test:
 
 ### 9.5 Adding More Filings to the Real Dataset
 
-The committed dataset currently holds one filing: NVIDIA's 10-K (accession `0001045810-26-000021`) under `data/raw/sec-edgar-filings/NVDA/10-K/`. To add more real filings, for example a different ticker or a newer quarterly report:
+The default index holds one filing (the five-filing evaluation corpus is under `data/raw_p3/` and `data/qdrant_db_p3/`): NVIDIA's 10-K (accession `0001045810-26-000021`) under `data/raw/sec-edgar-filings/NVDA/10-K/`. To add more real filings, for example a different ticker or a newer quarterly report:
 
 1. **Download the filing** with `src/ingestion/sec_scraper.py`:
    ```bash

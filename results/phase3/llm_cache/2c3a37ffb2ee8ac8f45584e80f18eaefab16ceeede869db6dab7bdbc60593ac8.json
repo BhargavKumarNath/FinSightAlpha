@@ -1,0 +1,1 @@
+{"content": "{\n  \"declined\": false,\n  \"reason\": \"The candidate provides a specific figure (120 days) as the answer rather than stating that the information is unavailable or cannot be determined.\"\n}", "prompt_tokens": 198, "completion_tokens": 46, "latency_s": 0.5194149017333984}

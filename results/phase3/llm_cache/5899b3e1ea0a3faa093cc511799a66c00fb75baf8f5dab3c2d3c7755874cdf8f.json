@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"The term loan that AMD provided to one of the ATMP joint ventures in 2024 was $100 million\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 2121, "completion_tokens": 63, "latency_s": 0.7207608222961426}

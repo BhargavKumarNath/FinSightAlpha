@@ -1,0 +1,1 @@
+{"content": "{\n\"declined\": false,\n\"reason\": \"The candidate provides a specific answer ('more likely than not' or 'greater than 50% likelihood') rather than stating that the information is unavailable.\"\n}", "prompt_tokens": 210, "completion_tokens": 47, "latency_s": 1.782001256942749}

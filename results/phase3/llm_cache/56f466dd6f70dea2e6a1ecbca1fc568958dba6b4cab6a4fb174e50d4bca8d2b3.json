@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"What is the date of the auditor's report on Intel's internal control over financial reporting?\",\n  \"answer\": \"January 22, 2026\",\n  \"quote\": \"our report dated January 22, 2026 expressed an unqualified opinion thereon\"\n}", "prompt_tokens": 431, "completion_tokens": 77, "latency_s": 0.5123987197875977}

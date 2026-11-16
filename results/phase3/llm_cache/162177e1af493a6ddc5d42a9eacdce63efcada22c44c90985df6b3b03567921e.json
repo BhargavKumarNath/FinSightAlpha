@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"Intel recorded $1.5 billion in net charges in 2025 that were attributable to the 2025 Restructuring Plan.\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 1560, "completion_tokens": 62, "latency_s": 1.9517593383789062}

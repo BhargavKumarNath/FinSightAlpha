@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"Apple must file its definitive proxy statement with the SEC within 120 days after the end of the fiscal year\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 985, "completion_tokens": 60, "latency_s": 0.7068984508514404}

@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"What is the expiration date range for NVIDIA's currently issued patents?\",\n  \"answer\": \"March 2026 to June 2045\",\n  \"quote\": \"Our currently issued patents have expiration dates from March 2026 to June 2045.\"\n}", "prompt_tokens": 406, "completion_tokens": 76, "latency_s": 0.508967399597168}

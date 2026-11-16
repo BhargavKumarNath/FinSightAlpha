@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"Which independent registered public accounting firm consented to the incorporation of Microsoft's reports in its 10-K filing?\",\n  \"answer\": \"Deloitte & Touche LLP\",\n  \"quote\": \"/s/ D\\nELOITTE\\n & T\\nOUCHE\\n LLP\"\n}", "prompt_tokens": 437, "completion_tokens": 75, "latency_s": 0.759601354598999}

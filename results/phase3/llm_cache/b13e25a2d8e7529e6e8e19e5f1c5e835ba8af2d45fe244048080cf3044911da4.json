@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"Intel\u2019s research and development expenses for 2025 were $13.8 billion\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 1495, "completion_tokens": 56, "latency_s": 0.6077826023101807}

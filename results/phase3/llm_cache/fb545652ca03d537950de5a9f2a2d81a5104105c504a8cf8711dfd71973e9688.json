@@ -1,0 +1,1 @@
+{"content": "{\"declined\": true, \"reason\": \"The candidate explicitly states that the provided documents do not contain the specific percentile result for 2023 and therefore cannot answer the question.\"}", "prompt_tokens": 221, "completion_tokens": 40, "latency_s": 0.298154354095459}

@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"The counterparty to the Equity Interest Purchase Agreement filed by AMD on October 15, 2015 was Nantong Fujitsu Microelectronics Co., Ltd.\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 2182, "completion_tokens": 71, "latency_s": 0.8830151557922363}

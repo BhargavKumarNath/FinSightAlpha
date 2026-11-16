@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"How much money did NVIDIA's partners place in escrow to mitigate potential exposure under the agreements?\",\n  \"answer\": \"$712 million\",\n  \"quote\": \"The partners have placed $712 million in escrow to mitigate our potential exposure.\"\n}", "prompt_tokens": 237, "completion_tokens": 64, "latency_s": 0.608330488204956}

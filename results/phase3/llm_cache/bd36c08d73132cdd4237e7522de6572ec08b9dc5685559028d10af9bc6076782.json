@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"Who is identified as the chief operating decision maker (CODM) for Apple in its 2026 Form 10-K?\",\n  \"answer\": \"The Company\u2019s CEO\",\n  \"quote\": \"The Company\u2019s CEO is its chief operating decision maker (\u201cCODM\u201d).\"\n}", "prompt_tokens": 401, "completion_tokens": 75, "latency_s": 0.7133848667144775}

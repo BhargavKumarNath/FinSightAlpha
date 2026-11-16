@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 from src.retrieval.hybrid_retriever import HybridRetriever
+from src.retrieval.labels import source_label
 
 # Import optimization layer
 from src.optimization.config import config
@@ -52,6 +53,19 @@ def add_latencies(left: dict, right: dict) -> dict:
         res[k] = res.get(k, 0.0) + v
     return res
 
+def _tokens(response, prompt_text: str, out_text: str) -> tuple[int, int]:
+    """Provider-reported token usage when present, else the 4-chars heuristic.
+
+    gpt-oss models spend hidden reasoning tokens that the heuristic cannot see,
+    so budget decisions use the real numbers whenever the API returns them.
+    """
+    um = getattr(response, "usage_metadata", None) or {}
+    if um.get("input_tokens") is not None:
+        return int(um["input_tokens"]), int(um.get("output_tokens", 0))
+    return (budget_manager.estimate_tokens(prompt_text),
+            budget_manager.estimate_tokens(out_text))
+
+
 # Advanced State Definition
 class AgentState(TypedDict):
     """State for production-grade RAG pipeline."""
@@ -70,7 +84,17 @@ class AgentState(TypedDict):
 
 # Optimization Layer Initialization
 print("Initializing Production Retriever & Reranker...")
-retriever = HybridRetriever()
+# Index location is configurable so evaluation can point at the multi-filing
+# collection without touching the default single-filing index.
+_COLLECTION = os.getenv("FINSIGHT_COLLECTION", "sec_filings")
+_QDRANT_PATH = os.getenv("FINSIGHT_QDRANT_PATH", "data/qdrant_db")
+_BM25_DIR = os.getenv("FINSIGHT_BM25_DIR", "data")
+retriever = HybridRetriever(
+    collection_name=_COLLECTION,
+    qdrant_path=_QDRANT_PATH,
+    bm25_path=os.path.join(_BM25_DIR, f"bm25_{_COLLECTION}.pkl"),
+    bm25_dir=_BM25_DIR,
+)
 
 budget_manager = TokenBudgetManager()
 model_router = ModelRouter(budget_manager=budget_manager)
@@ -146,7 +170,7 @@ def planner_node(state: AgentState):
         response = planner_llm.invoke([SystemMessage(content=PLANNER_PROMPT), HumanMessage(content=query)])
         plan = response.content
         print(f"  Plan: {plan.replace(chr(10), ' | ')}")
-        budget_manager.record_usage(budget_manager.estimate_tokens(PLANNER_PROMPT + query), budget_manager.estimate_tokens(plan), "planner")
+        budget_manager.record_usage(*_tokens(response, PLANNER_PROMPT + query, plan), "planner")
         return {"plan": plan, "original_query": query, "loop_count": loop_count, "latencies": {"planner": time.time() - start_t}}
     except Exception as e:
         err = f"Planner Error: {str(e)}"
@@ -177,7 +201,7 @@ def query_rewriter_node(state: AgentState):
             queries = [query]
 
         print(f"  Generated Sub-Queries: {queries}")
-        budget_manager.record_usage(budget_manager.estimate_tokens(prompt + query), budget_manager.estimate_tokens(response.content), "query_rewriter")
+        budget_manager.record_usage(*_tokens(response, prompt + query, response.content), "query_rewriter")
         return {"sub_queries": queries, "latencies": {"query_rewriter": time.time() - start_t}}
     except Exception as e:
         err = f"Rewriter Error: {str(e)}"
@@ -202,13 +226,19 @@ def retriever_node(state: AgentState):
         for sq in sub_queries:
             print(f"  Searching: `{sq}`")
             results = retriever.search(sq, top_n=top_n)
+            if config.use_context_window:
+                # Select/truncate by cosine to the sub-query and cap total tokens.
+                selected = context_window.select_chunks(sq, results)
+                by_text = {r["text"][:50]: r for r in results}
+                results = [{"text": c["text"], "metadata": c["metadata"],
+                            "score": by_text.get(c["text"][:50], {}).get("score", c["relevance_score"])}
+                           for c in selected]
             for r in results:
                 text = r["text"]
                 if text not in existing_texts:
                     existing_texts.add(text)
-                    source = r.get("metadata", {}).get("source", "unknown")
-                    short_fname = source.split("/")[-1].split("\\")[-1]
-                    new_chunks.append({"doc_id": doc_id_counter, "text": text, "source": short_fname, "score": r.get("score", 0.0)})
+                    label = source_label(r.get("metadata", {}))
+                    new_chunks.append({"doc_id": doc_id_counter, "text": text, "source": label, "score": r.get("score", 0.0)})
                     doc_id_counter += 1
 
         print(f"  Collected {len(new_chunks)} new chunks for reasoning.")
@@ -254,7 +284,7 @@ def reasoner_node(state: AgentState):
         draft = response.content
         preview = draft.replace('\n', ' ')[:100]
         print(f"  Draft: {preview}...")
-        budget_manager.record_usage(budget_manager.estimate_tokens(prompt), budget_manager.estimate_tokens(draft), "reasoner")
+        budget_manager.record_usage(*_tokens(response, prompt, draft), "reasoner")
         return {"draft_answer": draft, "latencies": {"reasoner": time.time() - start_t}}
     except Exception as e:
         err = f"Reasoner Error: {str(e)}"
@@ -291,7 +321,7 @@ def reflector_node(state: AgentState):
             feedback = "Parse failed."
 
         print(f"  Grounded: {is_grounded} | Needs More Info: {needs_more_info}")
-        budget_manager.record_usage(budget_manager.estimate_tokens(prompt), budget_manager.estimate_tokens(response.content), "reflector")
+        budget_manager.record_usage(*_tokens(response, prompt, response.content), "reflector")
 
         action = "needs_retrieval" if needs_more_info else ("needs_rewrite" if not is_grounded else "good")
         return {
@@ -319,7 +349,7 @@ def responder_node(state: AgentState):
             msg = "You are a helpful Financial assistant. Provide the best possible direct answer to the user's query globally, even without documentation."
             response = llm.invoke([SystemMessage(content=msg), HumanMessage(content=query)])
             draft = response.content + f"\n\n*(System Note: Graceful Degradation active. The Agentic framework bypassed execution due to an internal error: {state['error']}.)*"
-            budget_manager.record_usage(budget_manager.estimate_tokens(msg+query), budget_manager.estimate_tokens(draft), "responder_fallback")
+            budget_manager.record_usage(*_tokens(response, msg + query, draft), "responder_fallback")
         except Exception as e:
             draft = f"CRITICAL FAILURE: Pipeline crashed and fallback LLM also failed to respond. Details: {str(e)}"
         return {"messages": [AIMessage(content=draft)], "latencies": {"responder_fallback": time.time() - start_t}}

@@ -1,0 +1,31 @@
+{
+ "auditor": "the author's AI assistant (Claude), reading question, gold answer and candidate; not an independent human",
+ "n": 20,
+ "agree": 20,
+ "borderline": [
+  "Q030: candidate wrote 'Eloitte & Touche LLP' (dropped letter). Judge marked incorrect; strict reading agrees, a lenient reading would not."
+ ],
+ "ids": [
+  "Q054",
+  "Q030",
+  "Q060",
+  "Q007",
+  "Q013",
+  "Q075",
+  "Q018",
+  "Q058",
+  "Q077",
+  "Q068",
+  "Q050",
+  "Q074",
+  "Q002",
+  "Q005",
+  "Q046",
+  "Q078",
+  "Q061",
+  "Q026",
+  "Q073",
+  "Q051"
+ ],
+ "note": "A human spot check is recommended before treating the judge as validated."
+}

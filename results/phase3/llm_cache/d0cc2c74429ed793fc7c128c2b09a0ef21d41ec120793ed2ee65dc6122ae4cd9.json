@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"Under which state's laws is Apple's Award Agreement governed?\",\n  \"answer\": \"State of California\",\n  \"quote\": \"governed by and construed and enforced in accordance with the laws of the State of California\"\n}", "prompt_tokens": 438, "completion_tokens": 62, "latency_s": 0.5043549537658691}

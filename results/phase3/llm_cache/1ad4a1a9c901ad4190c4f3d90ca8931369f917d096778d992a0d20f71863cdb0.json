@@ -1,0 +1,1 @@
+{"content": "{\n  \"declined\": false,\n  \"reason\": \"The candidate provides a specific firm name (Deloitte & Touche LLP) as the answer rather than stating that the information is unavailable or cannot be determined.\"\n}", "prompt_tokens": 209, "completion_tokens": 50, "latency_s": 0.7180366516113281}

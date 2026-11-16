@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"Which independent registered public accounting firm audited Apple's financial statements as identified in the 10-K filing?\",\n  \"answer\": \"Ernst & Young LLP\",\n  \"quote\": \"Ernst & Young LLP, PCAOB Firm ID No. 00042.\"\n}", "prompt_tokens": 603, "completion_tokens": 74, "latency_s": 0.5678660869598389}

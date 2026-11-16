@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"On what date was the Offer Letter between AMD and Emily Ellis dated, as listed in the exhibits?\",\n  \"answer\": \"November 12, 2025\",\n  \"quote\": \"Offer Letter dated November 12, 2025, by and between Advanced Micro Devices, Inc. and Emily Ellis\"\n}", "prompt_tokens": 579, "completion_tokens": 85, "latency_s": 0.5401923656463623}

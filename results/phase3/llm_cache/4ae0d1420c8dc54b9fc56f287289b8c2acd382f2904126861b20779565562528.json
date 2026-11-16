@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"Where is Microsoft's corporate headquarters located?\",\n  \"answer\": \"Redmond, Washington\",\n  \"quote\": \"Our corporate headquarters are located in Redmond, Washington.\"\n}", "prompt_tokens": 456, "completion_tokens": 46, "latency_s": 0.6273510456085205}

@@ -1,0 +1,1 @@
+{"content": "{\"correct\": false, \"reason\": \"The candidate states that the information is unavailable, whereas the gold answer provides the specific expiration date range (March 2026 to June 2045).\"}", "prompt_tokens": 201, "completion_tokens": 45, "latency_s": 0.32033395767211914}

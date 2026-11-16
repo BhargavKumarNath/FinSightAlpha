@@ -1,0 +1,1 @@
+{"content": "{\n  \"declined\": false,\n  \"reason\": \"The candidate provides a specific answer identifying the CEO as the CODM, rather than stating that the information is unavailable or cannot be determined.\"\n}", "prompt_tokens": 208, "completion_tokens": 45, "latency_s": 0.40463900566101074}

@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"In which month and year was NVIDIA incorporated in California?\",\n  \"answer\": \"April 1993\",\n  \"quote\": \"NVIDIA was incorporated in California in April 1993\"\n}", "prompt_tokens": 413, "completion_tokens": 54, "latency_s": 0.4068601131439209}

@@ -1,0 +1,1 @@
+{"content": "{\"declined\": true, \"reason\": \"The candidate explicitly states that the provided documents do not contain the specific number of shares requested, thereby declining to answer the question.\"}", "prompt_tokens": 207, "completion_tokens": 37, "latency_s": 0.35960984230041504}

@@ -1,0 +1,1 @@
+{"content": "{\"declined\": true, \"reason\": \"The candidate explicitly states that the documents do not contain the requested information and therefore cannot provide an answer.\"}", "prompt_tokens": 187, "completion_tokens": 32, "latency_s": 0.7178542613983154}

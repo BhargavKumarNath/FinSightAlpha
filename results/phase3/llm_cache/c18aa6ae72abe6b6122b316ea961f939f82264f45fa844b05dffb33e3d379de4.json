@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"The largest direct customer accounted for 22% of NVIDIA's total revenue in fiscal year 2026\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 1738, "completion_tokens": 55, "latency_s": 1.5505115985870361}

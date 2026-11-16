@@ -1,0 +1,1 @@
+{"content": "{\n\"declined\": false,\n\"reason\": \"The candidate provides a specific answer stating the threshold is 'more likely than not' or greater than 50%, rather than declining to answer.\"\n}", "prompt_tokens": 206, "completion_tokens": 45, "latency_s": 0.8328876495361328}

@@ -1,0 +1,1 @@
+{"content": "{\"correct\": false, \"reason\": \"The candidate correctly states the net revenue but incorrectly claims that the 2024 effective tax rate is unavailable, whereas the gold answer provides the specific figure of 19%.\"}", "prompt_tokens": 296, "completion_tokens": 48, "latency_s": 1.423957347869873}

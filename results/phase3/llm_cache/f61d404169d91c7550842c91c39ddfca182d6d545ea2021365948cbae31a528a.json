@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"Who is identified as the primary competitor to Intel's CCG segment in the 10-K filing?\",\n  \"answer\": \"AMD\",\n  \"quote\": \"CCG's primary competitor is AMD, which like us designs processors based on the x86 architecture.\"\n}", "prompt_tokens": 389, "completion_tokens": 66, "latency_s": 0.29973554611206055}

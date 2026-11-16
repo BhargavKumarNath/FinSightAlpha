@@ -1,0 +1,1 @@
+{"content": "{\n  \"declined\": false,\n  \"reason\": \"The candidate provides specific names for the auditing firms of both Apple and Microsoft, asserting them as facts rather than declining to answer.\"\n}", "prompt_tokens": 314, "completion_tokens": 43, "latency_s": 0.41686177253723145}

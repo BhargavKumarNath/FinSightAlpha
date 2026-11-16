@@ -1,0 +1,1 @@
+{"content": "{\n\"declined\": false,\n\"reason\": \"The candidate provides a specific figure of $2.2 billion as the answer to the question rather than stating that the information is unavailable.\"\n}", "prompt_tokens": 249, "completion_tokens": 43, "latency_s": 0.6269402503967285}

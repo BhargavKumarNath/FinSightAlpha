@@ -1,0 +1,1 @@
+{"content": "{\"correct\": true, \"reason\": \"The candidate correctly identifies Ernst & Young LLP as Apple's auditor and Deloitte & Touche LLP as Microsoft's auditor, matching the gold answer.\"}", "prompt_tokens": 349, "completion_tokens": 41, "latency_s": 0.7244055271148682}

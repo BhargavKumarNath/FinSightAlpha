@@ -10,8 +10,8 @@ from src.optimization.batch_queries import QueryBatcher
 
 def test_config():
     assert config.session_token_budget == 100_000
-    assert config.model_heavy == "llama-3.3-70b-versatile"
-    assert config.model_light == "llama-3.1-8b-instant"
+    assert config.model_heavy == "openai/gpt-oss-120b"
+    assert config.model_light == "openai/gpt-oss-20b"
     assert config.cache_similarity_threshold == 0.92
     assert config.context_top_k == 8
 

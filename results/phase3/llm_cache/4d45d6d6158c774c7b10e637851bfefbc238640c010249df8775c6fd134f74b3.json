@@ -1,0 +1,1 @@
+{"content": "{\n  \"declined\": false,\n  \"reason\": \"The candidate provides a specific revenue figure ($34.6 billion) rather than stating that the information is unavailable or cannot be determined.\"\n}", "prompt_tokens": 180, "completion_tokens": 45, "latency_s": 0.66754150390625}

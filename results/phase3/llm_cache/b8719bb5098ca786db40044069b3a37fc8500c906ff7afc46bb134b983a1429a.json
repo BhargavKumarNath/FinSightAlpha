@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"AMD matches 75% of employees\u2019 contributions up to 6% of their eligible compensation in its 401(k) plan\",\n      \"supported\": false\n    }\n  ]\n}", "prompt_tokens": 1893, "completion_tokens": 60, "latency_s": 1.066096305847168}

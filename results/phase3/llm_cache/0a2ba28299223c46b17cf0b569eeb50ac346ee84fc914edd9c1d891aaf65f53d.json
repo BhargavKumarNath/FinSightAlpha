@@ -1,0 +1,1 @@
+{"content": "{\n  \"declined\": false,\n  \"reason\": \"The candidate provides specific dates (June 30, 2026, and July 29, 2026) as the answer rather than stating that the information is unavailable.\"\n}", "prompt_tokens": 216, "completion_tokens": 64, "latency_s": 0.47367382049560547}

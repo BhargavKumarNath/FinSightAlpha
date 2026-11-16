@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"Changes in climate where the company operates may increase the costs of powering and cooling the computer hardware that Microsoft uses to develop software and provide cloud-based services.\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 1328, "completion_tokens": 66, "latency_s": 2.578843116760254}

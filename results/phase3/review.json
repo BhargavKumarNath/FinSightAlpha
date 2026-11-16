@@ -1,0 +1,297 @@
+{
+ "keep": [
+  "S-3",
+  "S-170",
+  "S-100",
+  "S-5",
+  "S-153",
+  "S-691",
+  "S-611",
+  "S-577",
+  "S-503",
+  "S-418",
+  "S-498",
+  "S-552",
+  "S-346",
+  "S-698",
+  "S-490",
+  "S-934",
+  "S-817",
+  "S-1039",
+  "S-890",
+  "S-840",
+  "S-740",
+  "S-924",
+  "S-1061",
+  "S-856",
+  "S-806",
+  "S-1211",
+  "S-1324",
+  "S-1276",
+  "S-1421",
+  "S-1476",
+  "S-1403",
+  "S-1406",
+  "S-1411",
+  "S-1264",
+  "S-1191",
+  "S-1678",
+  "S-1738",
+  "S-1726",
+  "S-1528",
+  "S-1653",
+  "S-1647",
+  "S-1684",
+  "S-1626",
+  "S-1649",
+  "S-1583",
+  "MS-569-621",
+  "MC-116-1679",
+  "MC-290-927",
+  "U-301",
+  "U-259",
+  "U-145",
+  "U-19",
+  "U-155",
+  "U-640",
+  "U-375",
+  "U-670",
+  "U-756",
+  "U-1144",
+  "U-1453",
+  "U-1278",
+  "U-1705",
+  "U-1548",
+  "U-1593"
+ ],
+ "edits": {
+  "MS-569-621": {
+   "question": "In AMD's 10-K, through what date is the warrant issued to OpenAI exercisable, and as of what date is the AMD Executive Retirement Plan effective?",
+   "answer": "The warrant is exercisable through October 5, 2030; the Executive Retirement Plan is effective as of March 26, 2025."
+  },
+  "MC-116-1679": {
+   "question": "Which company reported higher net income in its most recent fiscal year, Apple or NVIDIA, and what were the two figures?",
+   "answer": "Apple, with $132,175 million versus NVIDIA's $120,067 million."
+  }
+ },
+ "compose": [
+  {
+   "type": "multi_same",
+   "company": "Intel",
+   "question": "What were Intel's R&D expenses and its operating loss in 2025?",
+   "answer": "R&D expenses were $13.8 billion and the operating loss was $10.3 billion.",
+   "from": [
+    [
+     "S-856",
+     0
+    ],
+    [
+     "S-806",
+     0
+    ]
+   ]
+  },
+  {
+   "type": "multi_same",
+   "company": "Intel",
+   "question": "How much in net charges did Intel record in 2025 related to the 2025 Restructuring Plan, and how much accelerated depreciation did it record in 2025 from shortened equipment useful lives?",
+   "answer": "$1.5 billion in net restructuring charges and $456 million of accelerated depreciation.",
+   "from": [
+    [
+     "S-817",
+     0
+    ],
+    [
+     "S-840",
+     0
+    ]
+   ]
+  },
+  {
+   "type": "multi_same",
+   "company": "NVIDIA",
+   "question": "What was NVIDIA's gross margin percentage for fiscal year 2026, and what was its net income for that year?",
+   "answer": "Gross margin was 71.1% and net income was $120,067 million.",
+   "from": [
+    [
+     "S-1649",
+     0
+    ],
+    [
+     "S-1678",
+     0
+    ]
+   ]
+  },
+  {
+   "type": "multi_same",
+   "company": "NVIDIA",
+   "question": "How much cash, cash equivalents and marketable securities did NVIDIA hold as of January 25, 2026, and what share of fiscal 2026 revenue came from its largest direct customer?",
+   "answer": "$62.6 billion in cash, cash equivalents and marketable securities; the largest direct customer was 22% of revenue.",
+   "from": [
+    [
+     "S-1653",
+     0
+    ],
+    [
+     "S-1583",
+     0
+    ]
+   ]
+  },
+  {
+   "type": "multi_same",
+   "company": "AMD",
+   "question": "What was AMD's total net revenue for the year ended December 27, 2025, and what was its effective tax rate in 2024?",
+   "answer": "Net revenue was $34,639 million; the 2024 effective tax rate was 19%.",
+   "from": [
+    [
+     "S-498",
+     0
+    ],
+    [
+     "S-503",
+     0
+    ]
+   ]
+  },
+  {
+   "type": "multi_same",
+   "company": "Microsoft",
+   "question": "As of what date did Microsoft management conclude its internal control over financial reporting was effective, and what is the date of the auditor's report on it?",
+   "answer": "Management concluded as of June 30, 2026; the auditor's report is dated July 29, 2026.",
+   "from": [
+    [
+     "S-1421",
+     0
+    ],
+    [
+     "S-1411",
+     0
+    ]
+   ]
+  },
+  {
+   "type": "multi_same",
+   "company": "Microsoft",
+   "question": "Who is Microsoft's chief operating decision maker, and what two metrics are generally used to allocate operating expenses among segments?",
+   "answer": "The Chief Executive Officer; relative gross margin or relative headcount.",
+   "from": [
+    [
+     "S-1403",
+     0
+    ],
+    [
+     "S-1406",
+     0
+    ]
+   ]
+  },
+  {
+   "type": "multi_same",
+   "company": "NVIDIA",
+   "question": "What charge did NVIDIA record in the first quarter of fiscal 2026 for H20 excess inventory and purchase obligations, and what inventory provisions did it record in fiscal year 2026?",
+   "answer": "$4.5 billion for H20 in Q1; inventory provisions of $4.0 billion in fiscal year 2026.",
+   "from": [
+    [
+     "S-1647",
+     0
+    ],
+    [
+     "MC-862-1720",
+     1
+    ]
+   ]
+  },
+  {
+   "type": "multi_same",
+   "company": "Intel",
+   "question": "What aggregate cash purchase price did Intel receive in its share sale to NVIDIA, and how many shares did it agree to issue and sell to SoftBank Group?",
+   "answer": "$5.0 billion from NVIDIA; 87 million shares to SoftBank Group.",
+   "from": [
+    [
+     "MC-1001-605",
+     0
+    ],
+    [
+     "MC-605-788",
+     1
+    ]
+   ]
+  },
+  {
+   "type": "multi_cross",
+   "company": "Apple+Intel",
+   "question": "Do Apple and Intel use the same independent registered public accounting firm? Name it.",
+   "answer": "Yes, Ernst & Young LLP audits both.",
+   "from": [
+    [
+     "S-170",
+     0
+    ],
+    [
+     "MC-1093-710",
+     0
+    ]
+   ]
+  },
+  {
+   "type": "multi_cross",
+   "company": "Apple+Microsoft",
+   "question": "Who is identified as the chief operating decision maker at Apple and at Microsoft?",
+   "answer": "The Chief Executive Officer at both companies.",
+   "from": [
+    [
+     "S-153",
+     0
+    ],
+    [
+     "S-1403",
+     0
+    ]
+   ]
+  },
+  {
+   "type": "multi_cross",
+   "company": "Apple+Microsoft",
+   "question": "Which independent registered public accounting firm audits Apple, and which audits Microsoft?",
+   "answer": "Ernst & Young LLP audits Apple; Deloitte & Touche LLP audits Microsoft.",
+   "from": [
+    [
+     "S-170",
+     0
+    ],
+    [
+     "S-1476",
+     0
+    ]
+   ]
+  }
+ ],
+ "extra_unanswerable": [
+  {
+   "company": "Alphabet",
+   "question": "What were Alphabet's capital expenditures in 2025?"
+  },
+  {
+   "company": "Tesla",
+   "question": "What was Tesla's automotive gross margin in 2025?"
+  },
+  {
+   "company": "NVIDIA",
+   "question": "What was NVIDIA's total revenue in fiscal year 2022?"
+  },
+  {
+   "company": "Apple",
+   "question": "What were Apple's iPhone net sales in fiscal year 2021?"
+  },
+  {
+   "company": "Microsoft",
+   "question": "What growth rate does Microsoft project for Azure revenue in fiscal year 2027?"
+  },
+  {
+   "company": "Qualcomm",
+   "question": "How many employees did Qualcomm have at the end of its most recent fiscal year?"
+  }
+ ]
+}

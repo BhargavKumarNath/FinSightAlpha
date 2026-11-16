@@ -1,0 +1,1 @@
+{"content": "{\"declined\": true, \"reason\": \"The candidate explicitly states that the documents do not contain the specific credit rating and therefore cannot provide the answer.\"}", "prompt_tokens": 205, "completion_tokens": 33, "latency_s": 1.0998985767364502}

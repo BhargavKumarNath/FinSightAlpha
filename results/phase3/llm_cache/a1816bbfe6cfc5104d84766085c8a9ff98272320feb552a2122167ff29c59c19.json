@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"The provided documents do not disclose an exact dollar amount for Intel's short-term debt as of December 27, 2025.\",\n      \"supported\": false\n    }\n  ]\n}", "prompt_tokens": 1717, "completion_tokens": 60, "latency_s": 0.5318071842193604}

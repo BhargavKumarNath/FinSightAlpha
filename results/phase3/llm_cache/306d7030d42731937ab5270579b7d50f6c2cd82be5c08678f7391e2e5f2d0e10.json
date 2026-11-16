@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"As of January 16, 2026, Intel had approximately 87,000 registered holders of record of its common stock\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 1928, "completion_tokens": 68, "latency_s": 0.7149496078491211}

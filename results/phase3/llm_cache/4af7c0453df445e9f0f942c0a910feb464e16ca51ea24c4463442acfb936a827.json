@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"Which Exchange Act rules define disclosure controls and procedures for NVIDIA?\",\n  \"answer\": \"13a-15(e) and 15d-15(e)\",\n  \"quote\": \"disclosure controls and procedures (as defined in Exchange Act Rules 13a-15(e) and 15d-15(e))\"\n}", "prompt_tokens": 471, "completion_tokens": 89, "latency_s": 0.5074594020843506}

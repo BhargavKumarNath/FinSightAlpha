@@ -1,0 +1,1 @@
+{"content": "{\n  \"declined\": false,\n  \"reason\": \"The candidate provides a specific figure (71.1%) as the answer rather than stating that the information is unavailable or cannot be determined.\"\n}", "prompt_tokens": 168, "completion_tokens": 46, "latency_s": 0.7286670207977295}

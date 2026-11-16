@@ -1,0 +1,1 @@
+{"content": "{\n  \"claims\": [\n    {\n      \"claim\": \"Operating expenses are generally allocated to segments based on relative gross margin or relative headcount.\",\n      \"supported\": true\n    }\n  ]\n}", "prompt_tokens": 1185, "completion_tokens": 48, "latency_s": 0.5170488357543945}

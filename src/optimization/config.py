@@ -31,9 +31,14 @@ class OptimizationConfig:
     tokens_per_char: float = 0.25        # Estimation: 4 chars ≈ 1 token
 
     # Model Router
-    model_heavy: str = "llama-3.3-70b-versatile"   # Reasoning/synthesis
-    model_light: str = "llama-3.1-8b-instant"      # Planning/classification
+    model_heavy: str = "openai/gpt-oss-120b"   # Reasoning/synthesis
+    model_light: str = "openai/gpt-oss-20b"      # Planning/classification
     model_temperature: float = 0.0
+    model_reasoning_effort: str = "low"  # gpt-oss: low keeps reasoning tokens (and TPM) small
+
+    # Context window: select/truncate retrieved chunks before the reasoner sees them.
+    # Off by default until the Phase 3 decision rule (docs/phase3_protocol.md) is applied.
+    use_context_window: bool = False
 
     # Retriever Cache
     retriever_cache_maxsize: int = 256   # Max cached query embeddings
@@ -52,7 +57,10 @@ class OptimizationConfig:
             if env_val is not None:
                 field_type = type(getattr(self, fld))
                 try:
-                    setattr(self, fld, field_type(env_val))
+                    if field_type is bool:
+                        setattr(self, fld, env_val.strip().lower() in ("1", "true", "yes", "on"))
+                    else:
+                        setattr(self, fld, field_type(env_val))
                 except (ValueError, TypeError):
                     pass  # Skip invalid env overrides silently
 

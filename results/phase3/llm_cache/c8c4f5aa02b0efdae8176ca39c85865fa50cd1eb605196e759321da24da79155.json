@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"What filer status did Apple indicate in its 10-K filing?\",\n  \"answer\": \"Large accelerated filer\",\n  \"quote\": \"Large accelerated filer | | \u2612 | | Accelerated filer | | \u2610\"\n}", "prompt_tokens": 477, "completion_tokens": 61, "latency_s": 0.8092138767242432}

@@ -13,16 +13,23 @@ from langchain_core.tools import BaseTool
 from src.optimization.config import config
 from src.optimization.token_budget import TokenBudgetManager, BudgetTier
 
+def _effort_kwargs(model: str) -> dict:
+    """`reasoning_effort` is only accepted by the gpt-oss family on Groq."""
+    if model.startswith("openai/gpt-oss"):
+        return {"reasoning_effort": config.model_reasoning_effort}
+    return {}
+
+
 class ModelRouter:
     """
     Manages model instances and routes tasks to the appropriate model.
 
     Model mapping (GREEN/YELLOW tier):
-      - Planner:   llama-3.1-8b-instant    (fast, cheap)
-      - Agent:     llama-3.3-70b-versatile  (powerful, reasoning)
+      - Planner:   openai/gpt-oss-20b    (fast, cheap)
+      - Agent:     openai/gpt-oss-120b  (powerful, reasoning)
 
     Under RED tier:
-      - All tasks: llama-3.1-8b-instant     (survive rate limits)
+      - All tasks: openai/gpt-oss-20b     (survive rate limits)
     """
 
     def __init__(
@@ -42,21 +49,23 @@ class ModelRouter:
 
     @property
     def heavy_llm(self) -> ChatGroq:
-        """The powerful reasoning model (70B)."""
+        """The powerful reasoning model (gpt-oss-120b)."""
         if self._heavy_llm is None:
             self._heavy_llm = ChatGroq(
                 model=self._heavy_name,
                 temperature=self._temperature,
+                **_effort_kwargs(self._heavy_name),
             )
         return self._heavy_llm
 
     @property
     def light_llm(self) -> ChatGroq:
-        """The fast classification model (8B)."""
+        """The fast model (gpt-oss-20b)."""
         if self._light_llm is None:
             self._light_llm = ChatGroq(
                 model=self._light_name,
                 temperature=self._temperature,
+                **_effort_kwargs(self._light_name),
             )
         return self._light_llm
 

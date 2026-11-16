@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"What percentage of NVIDIA's total revenue for fiscal year 2026 was attributed to its largest direct customer?\",\n  \"answer\": \"22%\",\n  \"quote\": \"For fiscal year 2026, sales to one direct customer represented 22% of total revenue\"\n}", "prompt_tokens": 403, "completion_tokens": 71, "latency_s": 1.223876953125}

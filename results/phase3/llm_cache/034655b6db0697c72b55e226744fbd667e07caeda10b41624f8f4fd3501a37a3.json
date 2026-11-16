@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"What percentage of employee contributions did AMD match in its 401(k) plan up to 6% of eligible compensation?\",\n  \"answer\": \"75%\",\n  \"quote\": \"The Company matches 75% of employees\u2019 contributions up to 6% of their eligible compensation.\"\n}", "prompt_tokens": 522, "completion_tokens": 77, "latency_s": 0.6391756534576416}

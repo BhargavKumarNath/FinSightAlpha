@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"According to Microsoft's 10-K, what two metrics are generally used to allocate operating expenses among segments?\",\n  \"answer\": \"relative gross margin or relative headcount\",\n  \"quote\": \"generally based on relative gross margin or relative headcount.\"\n}", "prompt_tokens": 383, "completion_tokens": 69, "latency_s": 0.8135600090026855}

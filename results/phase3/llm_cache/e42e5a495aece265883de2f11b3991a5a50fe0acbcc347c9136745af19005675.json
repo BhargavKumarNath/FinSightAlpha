@@ -1,0 +1,1 @@
+{"content": "{\"declined\": true, \"reason\": \"The candidate states that none of the provided documents mention an AMD subsidiary located in Denmark, thereby declining to provide a specific answer based on the available information.\"}", "prompt_tokens": 194, "completion_tokens": 42, "latency_s": 0.40335512161254883}

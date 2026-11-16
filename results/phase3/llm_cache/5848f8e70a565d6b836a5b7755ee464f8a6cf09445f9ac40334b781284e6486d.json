@@ -1,0 +1,1 @@
+{"content": "{\n  \"question\": \"According to Apple's 2026 Form 10-K, what portion of the company's total net sales is represented by sales outside the U.S.?\",\n  \"answer\": \"a majority\",\n  \"quote\": \"sales outside the U.S. representing a majority of the Company\u2019s total net sales.\"\n}", "prompt_tokens": 397, "completion_tokens": 81, "latency_s": 0.6017780303955078}
