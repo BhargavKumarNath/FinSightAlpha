@@ -9,7 +9,7 @@ htmlcov/
 data/qdrant_db/.lock
 
 # Large generated / re-downloadable data
-data/raw*/
+data/raw_p3/
 data/qdrant_db*/
 data/p3/*.pkl
 data/*.pkl
