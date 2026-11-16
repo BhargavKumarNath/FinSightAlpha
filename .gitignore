@@ -10,9 +10,8 @@ data/qdrant_db/.lock
 
 # Large generated / re-downloadable data
 data/raw_p3/
-data/qdrant_db*/
+data/qdrant_db_p3/
 data/p3/*.pkl
-data/*.pkl
 CLAUDE.md
 deployment_suggestion.md
 refactor.md
